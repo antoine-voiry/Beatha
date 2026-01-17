@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 150">
+  <defs>
+    <linearGradient id="grad1" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#00C9FF;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#92FE9D;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  
+  <!-- Text -->
+  <text x="130" y="100" font-family="Arial, sans-serif" font-size="80" font-weight="bold" fill="#333">BEATHA</text>
+  
+  <!-- Pulse / Propeller Icon -->
+  <path d="M 50 75 Q 65 25 80 75 T 110 75" stroke="url(#grad1)" stroke-width="8" fill="none" stroke-linecap="round"/>
+  <circle cx="50" cy="75" r="10" fill="#00C9FF" />
+  <circle cx="110" cy="75" r="10" fill="#92FE9D" />
+  
+  <!-- Subtitle -->
+  <text x="135" y="130" font-family="Arial, sans-serif" font-size="20" fill="#666" letter-spacing="2">DRONE RESUSCITATION UNIT</text>
+</svg>
