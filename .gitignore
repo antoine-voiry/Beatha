@@ -1,3 +1,4 @@
+# Python
 __pycache__/
 *.pyc
 *.pyo
@@ -22,6 +23,22 @@ wheels/
 .installed.cfg
 *.egg
 dumps/
+
+# Node.js
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.npm
+package-lock.json
+yarn.lock
+
+# Shell
+*.sh.bak
+*.sh.swp
+
+# General
 .DS_Store
 AI_CONTEXT.md
 .geminiignore
+.vscode/mcp.json

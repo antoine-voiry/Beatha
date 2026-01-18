@@ -1,0 +1,32 @@
+# Configuration for the 'settings' Probot app (https://github.com/repository-settings/app)
+# Or use this as a reference to manually configure your Repo "About" section.
+
+repository:
+  # See https://docs.github.com/en/rest/reference/repos#update-a-repository for all available settings.
+
+  # The short description of the repository.
+  description: "🚑 Headless Field Recovery Tool for FPV Drones (Raspberry Pi Zero W)"
+
+  # A URL with more information about the repository.
+  homepage: https://github.com/antoine-voiry/Beatha
+
+  # A list of topics to set on the repository.
+  topics:
+    - fpv
+    - drone
+    - betaflight
+    - raspberry-pi
+    - recovery-tool
+    - embedded
+    - python
+    - hardware
+
+  # Prevent Wiki and Projects to keep the repo clean (optional)
+  has_wiki: false
+  has_projects: false
+  has_downloads: true
+  
+  # Allow squash merge for cleaner history
+  allow_squash_merge: true
+  allow_merge_commit: false
+  allow_rebase_merge: false

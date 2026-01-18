@@ -1,12 +1,28 @@
+# Project Beatha
+
 <div align="center">
-  <img src="assets/logo.svg" alt="Project Beatha Logo" width="500">
+  <img src="assets/beatha_logo.png" alt="Project Beatha Logo" width="500">
   <br>
   <h1>Project Beatha</h1>
   <h3>"Bringing Dead Drones Back to Life"</h3>
+  <p><em>A Weekend Project Experiment</em></p>
 </div>
 
-## The Story
-The name **Beatha** (pronounced *ba-ha*) comes from the Irish word for **"Life"**. It is a nod to the popular flight control software **Betaflight**. When a drone crashes and is unresponsive or "dead" on the field, Project Beatha acts as a field recovery medic, extracting critical firmware configurations and "black box" data settings to bring it back to life or diagnose the cause of death without needing a laptop.
+## 📜 The Story (Read This First)
+Project Beatha started as a midnight idea on a Friday. It was built in **under 12 hours** over a single weekend.
+
+While commercial tools like **SpeedyBee** exist and are fantastic, this project is about:
+1.  **Open Source Freedom:** Hackable, modifiable, and free.
+2.  **AI-Assisted Engineering:** This entire project—code, docs, and architecture—was brainstormed and built with the assistance of AI agents.
+3.  **Differentiation:** Focusing on "Headless Recovery" and "Cloud Sync" rather than just configuration.
+
+**Disclaimer:** This is **v0.1 (Alpha)**. Expect rough edges. It is a proof-of-concept.
+
+## 🔮 Future Vision: The Drone Database
+By automatically uploading dumps to the cloud, Project Beatha lays the foundation for a global **Drone Database**.
+*   **Analysis:** Automatically analyze your configuration against known "good" tunes.
+*   **History:** Track changes over time.
+*   **Blackbox:** Future support for uploading and analyzing Blackbox logs to diagnose crashes instantly.
 
 ## Overview
 Project Beatha is a "Headless" field recovery tool for FPV drones. It runs on a Raspberry Pi Zero W and automatically extracts `dump all` firmware configurations from a connected flight controller and uploads them to the cloud.
@@ -27,6 +43,7 @@ For a complete list of materials, please see **[BOM.md](BOM.md)**.
 
 *   **Controller:** Raspberry Pi Zero W v1.1 (Minimum)
 *   **Interface:** Custom "Hat" using a Prototyping Board (Buttons + LEDs + Buzzer).
+*   **Case:** 3D Printable STL files available in `assets/3dmodels/`.
 *   **Input:** USB OTG to Drone Flight Controller
 *   **Power:** 5V 2A+ Power Supply
 
@@ -101,4 +118,23 @@ sudo systemctl start beatha.service
 *   **Finish:** After success/fail indication (3 seconds), system returns to Breathing Blue.
 
 ## License
-MIT License. See [LICENSE](LICENSE) for details.
+
+**Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International (CC BY-NC-SA 4.0)**
+
+
+
+*   **You are free to:** Share and Adapt the material.
+
+*   **Under these terms:**
+
+    *   **Attribution:** You must give appropriate credit.
+
+    *   **NonCommercial:** You may **NOT** use the material for commercial purposes (e.g., selling units).
+
+    *   **ShareAlike:** If you remix, transform, or build upon the material, you must distribute your contributions under the same license.
+
+
+
+**Commercial Use:**
+
+If you wish to sell Project Beatha units or use this for commercial purposes, please contact **Antoine Voiry** via GitHub.

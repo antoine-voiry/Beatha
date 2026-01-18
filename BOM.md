@@ -1,5 +1,8 @@
 # Bill of Materials (BOM) - Project Beatha
 
+![Visual Reference: Core components (Schottky Diode not pictured)](assets/scavenge_parts.jpg)
+*Visual Reference: Core components. (Note: The required Schottky Diode for LiPo safety is not pictured).*
+
 This document lists all hardware components required to build the Project Beatha field recovery tool.
 
 ## Core Components

@@ -5,8 +5,13 @@ After=network.target
 [Service]
 Type=simple
 User=root
-WorkingDirectory=/home/pi/betaflightdebugger
-ExecStart=/usr/bin/python3 src/main.py
+WorkingDirectory=/home/antoine/betaflightdebugger
+ExecStart=/usr/bin/python3 src/backend/server.py
+Environment=PYTHONUNBUFFERED=1
+Environment=PYTHONPATH=/home/antoine/betaflightdebugger
+Environment=LOG_LEVEL=INFO
+StandardOutput=append:/var/log/beatha.log
+StandardError=append:/var/log/beatha.log
 Restart=always
 RestartSec=5
 

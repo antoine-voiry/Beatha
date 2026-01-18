@@ -1,0 +1,19 @@
+{
+  "hardware": {
+    "led_pin": 18,
+    "button_dump_pin": 23,
+    "button_pair_pin": 24,
+    "buzzer_pin": 25,
+    "led_count": 4,
+    "led_brightness": 0.2
+  },
+  "system": {
+    "dump_dir": "/home/pi/dumps",
+    "serial_port": "/dev/ttyACM0",
+    "baud_rate": 115200,
+    "socat_port": 5000
+  },
+  "features": {
+    "emulation_mode_fallback": true
+  }
+}

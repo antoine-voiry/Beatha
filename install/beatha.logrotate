@@ -1,0 +1,12 @@
+/var/log/beatha.log {
+    daily
+    rotate 7
+    compress
+    delaycompress
+    missingok
+    notifempty
+    create 644 antoine antoine
+    postrotate
+        systemctl restart beatha > /dev/null
+    endscript
+}

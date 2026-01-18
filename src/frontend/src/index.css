@@ -1,0 +1,31 @@
+:root {
+  --bg-color: #1a1a1a;
+  --card-bg: #2d2d2d;
+  --text-color: #ffffff;
+  --accent-color: #3498db;
+  --success-color: #2ecc71;
+  --danger-color: #e74c3c;
+  --warning-color: #f1c40f;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  background-color: var(--bg-color);
+  color: var(--text-color);
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+button {
+  transition: all 0.2s ease;
+}
+
+button:active {
+  transform: scale(0.98);
+}
+
+button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
