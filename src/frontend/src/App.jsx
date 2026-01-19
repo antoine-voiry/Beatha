@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Wifi, Save, Activity, Volume2, Lightbulb, Power, Terminal, AlertTriangle, ChevronDown, ChevronRight, Usb, RefreshCw } from 'lucide-react';
+import { Wifi, Save, Activity, Volume2, Lightbulb, Power, Terminal, AlertTriangle, ChevronDown, ChevronRight, Usb, RefreshCw, Bluetooth } from 'lucide-react';
 
 function App() {
   const [status, setStatus] = useState({ drone_connected: false, mode: 'OFFLINE', error: null, buttons: { dump: false, pair: false } });
@@ -32,24 +32,38 @@ function App() {
     };
 
     fetchConfig();
-    const interval = setInterval(fetchStatus, 500); // Faster poll for button feedback
+    const interval = setInterval(fetchStatus, 1000); 
     fetchStatus();
     return () => clearInterval(interval);
   }, []);
 
-  const sendCommand = async (component, action) => {
+  const sendHardwareCommand = async (component, action) => {
     setLoading(true);
-    setLastAction(`Sending ${action}...`);
     try {
       const res = await fetch(`/api/test/hardware/${component}?action=${action}`, { method: 'POST' });
       if (!res.ok) throw new Error(`Failed: ${res.status}`);
       const data = await res.json();
-      setLastAction(`✅ Success: ${data.status}`);
+      setLastAction(`✅ Hardware: ${data.status}`);
     } catch (e) {
       setLastAction(`❌ Error: ${e.message}`);
     } finally {
       setLoading(false);
     }
+  };
+
+  const triggerAction = async (actionName) => {
+      setLoading(true);
+      setLastAction(`Requesting ${actionName}...`);
+      try {
+          const res = await fetch(`/api/action/${actionName}`, { method: 'POST' });
+          if (!res.ok) throw new Error("Action Failed");
+          const data = await res.json();
+          setLastAction(`✅ ${data.status}`);
+      } catch (e) {
+          setLastAction(`❌ Error: ${e.message}`);
+      } finally {
+          setLoading(false);
+      }
   };
 
   const handleConfigChange = (e) => {
@@ -69,7 +83,7 @@ function App() {
           if (!res.ok) throw new Error("Save Failed");
           const data = await res.json();
           setLastAction(`✅ ${data.status}`);
-          // Reload page after delay? Or just wait for reconnection
+          setTimeout(() => window.location.reload(), 3000);
       } catch (e) {
           setLastAction(`❌ Error: ${e.message}`);
       } finally {
@@ -83,11 +97,16 @@ function App() {
       <header style={styles.header}>
         <div style={styles.logo}>
           <img src="/logo.png" alt="Logo" height="40" style={{ borderRadius: '5px' }} />
-          <h1>Project Beatha</h1>
+          <div>
+            <h1 style={{ margin: 0, fontSize: '1.2rem' }}>Project Beatha</h1>
+            <span style={{ fontSize: '0.8rem', color: '#7f8c8d' }}>FPV Recovery Tool</span>
+          </div>
         </div>
         <div style={styles.badge(status.drone_connected ? 'success' : 'danger')}>
-          <Wifi size={16} />
-          <span>{status.drone_connected ? "Connected" : "Waiting for USB Connection"}</span>
+          <Usb size={16} />
+          <span style={{ display: 'none', '@media (min-width: 400px)': { display: 'inline' } }}>
+             {status.drone_connected ? "Connected" : "No USB"}
+          </span>
         </div>
       </header>
 
@@ -99,9 +118,37 @@ function App() {
         </div>
       )}
 
-      {/* Pin Config Card */}
+      {/* Main Status Card */}
+      <div style={styles.card}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+              <h2 style={styles.cardTitle}>Status: {status.mode}</h2>
+              {status.mode !== 'IDLE' && <Activity className="spin" color="#3498db" />}
+          </div>
+          
+          <div style={styles.grid}>
+            <button 
+                style={styles.actionBtn(status.mode === 'IDLE' && status.drone_connected)} 
+                disabled={status.mode !== 'IDLE' || !status.drone_connected}
+                onClick={() => triggerAction('dump')}
+            >
+                <Save size={24} />
+                <span>Start Dump</span>
+            </button>
+            
+            <button 
+                style={styles.actionBtn(status.mode === 'IDLE')} 
+                disabled={status.mode !== 'IDLE'}
+                onClick={() => triggerAction('pair')}
+            >
+                <Bluetooth size={24} />
+                <span>Start Pairing</span>
+            </button>
+          </div>
+      </div>
+
+      {/* Hardware Configuration */}
       {hwConfig && (
-        <CollapsibleCard title="⚙️ Hardware Configuration" defaultOpen={false}>
+        <CollapsibleCard title="⚙️ Hardware Config" defaultOpen={false}>
           <div style={styles.grid}>
             <ConfigInput label="LED Pin" name="led_pin" value={configForm.led_pin} onChange={handleConfigChange} />
             <ConfigInput label="Buzzer Pin" name="buzzer_pin" value={configForm.buzzer_pin} onChange={handleConfigChange} />
@@ -110,30 +157,23 @@ function App() {
           </div>
           <div style={{ marginTop: '15px', textAlign: 'right' }}>
               <button style={styles.smBtn} onClick={saveConfig} disabled={loading}>
-                  <RefreshCw size={16} className={loading ? "spin" : ""} /> Save & Restart Backend
+                  <RefreshCw size={16} className={loading ? "spin" : ""} /> Save & Restart
               </button>
           </div>
         </CollapsibleCard>
       )}
 
-      {/* USB Menu */}
-      <CollapsibleCard title="🔌 USB Menu" icon={<Usb size={20} />} defaultOpen={false}>
-        <div style={styles.emptyState}>
-          <p>USB Device List (Coming Soon)</p>
-        </div>
-      </CollapsibleCard>
-
       {/* Hardware Test Card */}
-      <CollapsibleCard title="🛠️ Hardware Test" defaultOpen={true}>
+      <CollapsibleCard title="🛠️ Hardware Test" defaultOpen={false}>
         <div style={styles.statusRow}>
             <StatusIndicator label="Dump Button" active={status.buttons?.dump} />
             <StatusIndicator label="Pair Button" active={status.buttons?.pair} />
         </div>
         <div style={styles.grid}>
-          <ControlBtn icon={<Lightbulb />} label="Green LED" color="#2ecc71" onClick={() => sendCommand('led', 'green')} />
-          <ControlBtn icon={<Lightbulb />} label="Red LED" color="#e74c3c" onClick={() => sendCommand('led', 'red')} />
-          <ControlBtn icon={<Volume2 />} label="Beep (ESC)" color="#f1c40f" onClick={() => sendCommand('buzzer', 'on')} />
-          <ControlBtn icon={<Power />} label="LED Off" color="#95a5a6" onClick={() => sendCommand('led', 'off')} />
+          <ControlBtn icon={<Lightbulb />} label="Green" color="#2ecc71" onClick={() => sendHardwareCommand('led', 'green')} />
+          <ControlBtn icon={<Lightbulb />} label="Red" color="#e74c3c" onClick={() => sendHardwareCommand('led', 'red')} />
+          <ControlBtn icon={<Volume2 />} label="Beep" color="#f1c40f" onClick={() => sendHardwareCommand('buzzer', 'on')} />
+          <ControlBtn icon={<Power />} label="Off" color="#95a5a6" onClick={() => sendHardwareCommand('led', 'off')} />
         </div>
         <div style={styles.consoleLog}>
           <Terminal size={14} style={{ marginRight: '8px' }} />
@@ -141,22 +181,9 @@ function App() {
         </div>
       </CollapsibleCard>
 
-      {/* Dumps Card */}
-      <div style={styles.card}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <h2 style={styles.cardTitle}>📂 Firmware Dumps</h2>
-          <button style={styles.smBtn} onClick={() => sendCommand('dump', 'start')}>
-            <Save size={16} /> New Dump
-          </button>
-        </div>
-        <div style={styles.emptyState}>
-          <p>No dumps found on device.</p>
-        </div>
-      </div>
-
       {/* Footer */}
       <footer style={styles.footer}>
-        v0.1 (Alpha) | Build: {new Date().toLocaleDateString()} {new Date().toLocaleTimeString()}
+        v0.1.0-alpha | {new Date().toLocaleDateString()}
       </footer>
     </div>
   );
@@ -214,8 +241,8 @@ const ControlBtn = ({ icon, label, color, onClick }) => (
 );
 
 const styles = {
-  container: { maxWidth: '600px', margin: '0 auto', padding: '20px' },
-  header: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px' },
+  container: { width: '100%', maxWidth: '800px', margin: '0 auto', padding: '10px', boxSizing: 'border-box' },
+  header: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' },
   logo: { display: 'flex', alignItems: 'center', gap: '10px' },
   badge: (type) => ({
     display: 'flex', alignItems: 'center', gap: '6px',
@@ -228,16 +255,25 @@ const styles = {
     background: '#e74c3c', color: 'white', padding: '12px', borderRadius: '8px',
     display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '20px'
   },
-  card: { background: '#2d2d2d', borderRadius: '12px', padding: '20px', marginBottom: '20px', boxShadow: '0 4px 6px rgba(0,0,0,0.1)' },
+  card: { background: '#2d2d2d', borderRadius: '12px', padding: '15px', marginBottom: '15px', boxShadow: '0 4px 6px rgba(0,0,0,0.1)' },
   cardHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'center' },
-  cardTitle: { margin: '0 0 15px 0', fontSize: '18px', color: '#ecf0f1' },
-  grid: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' },
+  cardTitle: { margin: '0 0 5px 0', fontSize: '18px', color: '#ecf0f1' },
+  grid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '12px' },
   statusRow: { display: 'flex', gap: '20px', marginBottom: '15px', padding: '10px', background: '#222', borderRadius: '8px' },
   btn: {
     display: 'flex', alignItems: 'center', gap: '10px', padding: '15px',
     background: '#3a3a3a', border: 'none', borderRadius: '8px',
-    color: 'white', fontSize: '15px', cursor: 'pointer', textAlign: 'left'
+    color: 'white', fontSize: '15px', cursor: 'pointer', textAlign: 'left', width: '100%'
   },
+  actionBtn: (active) => ({
+      display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '10px',
+      padding: '20px', borderRadius: '10px', border: 'none',
+      background: active ? '#2980b9' : '#34495e',
+      color: active ? 'white' : '#7f8c8d',
+      cursor: active ? 'pointer' : 'not-allowed',
+      fontWeight: 'bold', fontSize: '16px',
+      opacity: active ? 1 : 0.7
+  }),
   smBtn: {
     display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 12px',
     background: '#3498db', border: 'none', borderRadius: '6px', color: 'white', cursor: 'pointer', fontSize: '14px'
@@ -249,9 +285,8 @@ const styles = {
   infoItem: { background: '#3a3a3a', padding: '10px', borderRadius: '6px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' },
   label: { color: '#bdc3c7', fontSize: '14px' },
   val: { color: '#fff', fontWeight: 'bold', fontSize: '14px' },
-  input: { background: 'transparent', border: 'none', color: '#fff', textAlign: 'right', fontSize: '14px', fontWeight: 'bold', width: '100px' },
-  emptyState: { padding: '20px', textAlign: 'center', color: '#7f8c8d', border: '1px dashed #444', borderRadius: '8px' },
-  footer: { textAlign: 'center', marginTop: '40px', color: '#555', fontSize: '12px', borderTop: '1px solid #333', paddingTop: '20px' }
+  input: { background: 'transparent', border: 'none', color: '#fff', textAlign: 'right', fontSize: '14px', fontWeight: 'bold', width: '80px' },
+  footer: { textAlign: 'center', marginTop: '20px', color: '#555', fontSize: '12px', borderTop: '1px solid #333', paddingTop: '20px' }
 };
 
 export default App;

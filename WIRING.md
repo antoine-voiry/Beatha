@@ -1,65 +1,64 @@
-# Wiring Guide - Project Beatha
+# Wiring Guide
 
-## ⚠️ The Master Reference
-**Follow these steps exactly.** This guide uses a "Phase" approach to ensure reliability.
+**⚠️ WARNING:** This project involves soldering directly to the Raspberry Pi. Mistakes can damage your hardware. Proceed at your own risk.
 
-![Pi Zero Pinout](https://gpiozero.readthedocs.io/en/stable/_images/pinout_pi_zero.png)
-*(Reference: Standard Pi Zero W GPIO Header)*
+## Overview
 
----
+The wiring is split into two phases:
+1.  **The Backside:** Direct USB Data connection (PP22/PP23) to allow the Pi to act as a Host to the Flight Controller.
+2.  **The Topside:** The GPIO "Hat" for Buttons, LEDs, and Buzzer.
 
-## Phase 1: The "Backside" (The Hard Part)
-*Start here while the board is easy to move around.*
+![Wiring Diagram](assets/wiring_diagram.svg)
+*(Note: If the SVG is not visible, refer to the text instructions below)*
 
-1.  **Flip the Pi Zero W over** (Chips facing down).
-2.  **Locate PP22 and PP23** (Directly behind the USB data port).
-3.  **Tin the Pads:** Touch your iron and a tiny bit of solder to PP22 and PP23 to make a small shiny "pillow" on each.
-4.  **Solder Green Wire (Data+):** Connect to **PP22**.
-    *   *Check:* Ensure it doesn't touch PP23.
-5.  **Solder White Wire (Data-):** Connect to **PP23**.
-    *   *Check:* Ensure it doesn't touch PP22.
-6.  **Secure the Wire:** Use a dab of hot glue or tape on the wires near the solder points so a tug on the cable doesn't rip the pads off.
+## Phase 1: The "Backside" (USB Data)
 
----
+This is the most critical step. We are hijacking the USB Data lines from the test pads on the back of the Pi Zero.
 
-## Phase 2: The "Topside" (The Hat)
-*Flip the board back over (Chips facing up).*
+**Target Pads:**
+*   **PP22:** USB Data + (Green Wire)
+*   **PP23:** USB Data - (White Wire)
 
-### The Power (Umbilical Input)
-*   **Black Wire (GND):** Solder to **Pin 6** (3rd pin down, outer row).
-*   **Red Wire (5V):**
-    *   **If using Diode:** Solder the **Stripe Side (Cathode)** to **Pin 2** (Top right corner, outer row). Solder the Red wire to the Black Body Side (Anode).
-    *   **If NO Diode:** Solder Red wire directly to **Pin 2**.
+**Instructions:**
+1.  **Prepare the USB Cable:** Cut a Micro USB cable. Strip the outer insulation to reveal Red, Black, Green, and White wires.
+2.  **Isolate Power:** **CUT the RED (5V) wire** coming from the USB cable that plugs into the drone. We do NOT want to power the drone from the Pi or vice-versa via this cable. Connect **ONLY** Ground (Black), Data+ (Green), and Data- (White).
+3.  **Solder to Pi:**
+    *   Flip the Pi Zero W over (Chips facing down).
+    *   Solder **Green Wire** to **PP22**.
+    *   Solder **White Wire** to **PP23**.
+    *   Secure wires with hot glue/tape.
 
-### The Peripherals
+## Phase 2: The "Topside" (GPIO Hat)
 
-**LED Strip:**
-*   **Red (5V):** **Pin 4**.
-*   **Black (GND):** **Pin 9** (or any free GND).
-*   **Data In:** **Pin 12** (GPIO 18).
+Connect the peripherals to the GPIO header.
 
-**Button 1 (Start/Dump):**
-*   **Leg 1:** **Pin 16** (GPIO 23).
-*   **Leg 2:** **Pin 14** (GND).
+| Component | Pin Function | BCM (GPIO) | Physical Pin |
+| :--- | :--- | :---: | :---: |
+| **LED Strip (Data)** | GPIO 18 | 18 | 12 |
+| **Dump Button** | GPIO 23 | 23 | 16 |
+| **Pair Button** | GPIO 24 | 24 | 18 |
+| **Buzzer (+)** | GPIO 25 | 25 | 22 |
+| **Grounds** | GND | - | 6, 9, 14, 20, 25 |
+| **5V Power** | 5V | - | 2 or 4 |
 
-**Button 2 (Func/Pair):**
-*   **Leg 1:** **Pin 18** (GPIO 24).
-*   **Leg 2:** **Pin 20** (GND).
+### Connection Details
 
-**Buzzer:**
-*   **Positive (+):** **Pin 22** (GPIO 25).
-*   **Negative (-):** **Pin 25** (GND).
+1.  **LED Strip (WS2812B):**
+    *   **5V:** Connect to Pi Physical Pin 2 or 4.
+    *   **GND:** Connect to Pi Physical Pin 9.
+    *   **DIN (Data In):** Connect to Pi Physical Pin 12 (GPIO 18).
 
----
+2.  **Buttons (Active Low):**
+    *   **Dump Button:** Leg 1 to Pin 16 (GPIO 23), Leg 2 to GND.
+    *   **Pair Button:** Leg 1 to Pin 18 (GPIO 24), Leg 2 to GND.
+    *   *(Note: Internal Pull-Up resistors are used in software).*
 
-## Phase 3: The "Smoke Test" (Inspection)
-**Before you plug ANYTHING in:**
+3.  **Buzzer:**
+    *   **Positive (+):** Connect to Pin 22 (GPIO 25).
+    *   **Negative (-):** Connect to GND.
 
-1.  **Visual Check:** Look closely at **Pin 2** and **Pin 4** (The 5V pins). Make sure they are not accidentally bridged to any other pins with a blob of solder.
-2.  **The Diode Check:** If you used a Schottky, is the **Silver Stripe** pointing **TOWARDS the Raspberry Pi**? (Stripe = Pin 2).
-3.  **The Data Check:** Are Green (PP22) and White (PP23) separate? If they touch, USB won't work.
+## Phase 3: Power
 
-### Ready to power up?
-1.  **Step 1:** Plug the Umbilical into the Drone.
-2.  **Step 2:** Plug a battery into the Drone.
-3.  **Expected Result:** The Drone lights up, and a few seconds later, the Pi's green activity LED should start flickering.
+Power the Raspberry Pi via its dedicated **PWR** USB port (the one on the outer edge) using a Power Bank or reliable 5V source.
+
+**Do NOT** plug the drone battery in while soldering or testing connections.

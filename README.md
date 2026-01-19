@@ -32,7 +32,7 @@ Project Beatha is a "Headless" field recovery tool for FPV drones. It runs on a 
 *   **Modes:**
     *   **Idle/Proxy:** Acts as a TCP bridge allowing wireless connection to Betaflight Configurator.
     *   **Extraction:** One-button firmware dump extraction.
-    *   **Pairing:** dedicated button to enable Bluetooth discovery for configuration.
+    *   **Pairing:** Dedicated button to enable Bluetooth discovery for configuration.
 *   **Visual Feedback:** Clear 4-stage LED status indication.
 *   **Audible Feedback:** (Optional) Buzzer beeps for start/success/fail.
 *   **Cloud Sync:** Automatic upload to Google Drive via `rclone`.
@@ -63,13 +63,7 @@ For detailed wiring instructions, please refer to **[WIRING.md](WIRING.md)**.
 Ensure your Raspberry Pi Zero W is set up with Raspberry Pi OS Lite and has internet access.
 
 ### 2. System Dependencies
-Install system packages:
-```bash
-sudo apt-get update
-sudo apt-get install python3-pip python3-venv socat git
-```
-
-Install `rclone` and configure it:
+Install `rclone` and configure it (RUN AS YOUR USER, NOT ROOT):
 ```bash
 curl https://rclone.org/install.sh | sudo bash
 rclone config
@@ -81,25 +75,18 @@ rclone config
 Clone the repository:
 ```bash
 cd /home/pi
-git clone https://github.com/yourusername/project-beatha.git betaflightdebugger
+git clone https://github.com/antoine-voiry/Beatha.git betaflightdebugger
 cd betaflightdebugger
 ```
 
-Install Python dependencies:
-```bash
-# Note: rpi_ws281x requires root privileges to access GPIO registers
-sudo pip3 install -r requirements.txt --break-system-packages
-```
-*(Note: On newer Raspberry Pi OS, you might need to use a virtual environment or `--break-system-packages` as shown above, but running as root service is standard for hardware GPIO access).*
+### 4. Automated Installer
+We have provided a setup script that creates a virtual environment, installs dependencies, builds the frontend, and sets up the systemd service.
 
-### 4. Service Installation
-Install the systemd service to run Beatha on boot:
 ```bash
-sudo cp install/beatha.service /etc/systemd/system/
-sudo systemctl daemon-reload
-sudo systemctl enable beatha.service
-sudo systemctl start beatha.service
+sudo ./scripts/setup.sh
 ```
+
+**Note:** The installer will automatically detect your user (e.g., `pi`) and configure the service to run as that user to avoid permission issues with `rclone`.
 
 ## Usage
 
@@ -117,24 +104,18 @@ sudo systemctl start beatha.service
 *   **Wait:** Watch the LEDs progress from 1 to 4.
 *   **Finish:** After success/fail indication (3 seconds), system returns to Breathing Blue.
 
+## Known Bugs
+See **[KNOWN_BUGS.md](KNOWN_BUGS.md)** for a list of current issues and workarounds.
+
 ## License
 
 **Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International (CC BY-NC-SA 4.0)**
 
-
-
 *   **You are free to:** Share and Adapt the material.
-
 *   **Under these terms:**
-
     *   **Attribution:** You must give appropriate credit.
-
     *   **NonCommercial:** You may **NOT** use the material for commercial purposes (e.g., selling units).
-
     *   **ShareAlike:** If you remix, transform, or build upon the material, you must distribute your contributions under the same license.
 
-
-
 **Commercial Use:**
-
 If you wish to sell Project Beatha units or use this for commercial purposes, please contact **Antoine Voiry** via GitHub.

@@ -3,3 +3,6 @@ adafruit-circuitpython-neopixel
 pyserial
 pre-commit
 detect-secrets
+fastapi
+uvicorn
+pyudev
