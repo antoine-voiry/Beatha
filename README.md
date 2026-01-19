@@ -75,8 +75,8 @@ rclone config
 Clone the repository:
 ```bash
 cd /home/pi
-git clone https://github.com/antoine-voiry/Beatha.git betaflightdebugger
-cd betaflightdebugger
+git clone https://github.com/antoine-voiry/Beatha.git beatha-project
+cd beatha-project
 ```
 
 ### 4. Automated Installer
