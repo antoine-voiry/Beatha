@@ -36,6 +36,7 @@ Project Beatha is a "Headless" field recovery tool for FPV drones. It runs on a 
 *   **Visual Feedback:** Clear 4-stage LED status indication.
 *   **Audible Feedback:** (Optional) Buzzer beeps for start/success/fail.
 *   **Cloud Sync:** Automatic upload to Google Drive via `rclone`.
+*   **Web Interface:** View dump status, firmware version, and full dump contents via browser. See [docs/FEATURE_DUMP_DISPLAY.md](docs/FEATURE_DUMP_DISPLAY.md).
 
 ## Hardware Specification
 
@@ -103,6 +104,20 @@ sudo ./scripts/setup.sh
 *   **Button Press:** Triggers Extraction Mode.
 *   **Wait:** Watch the LEDs progress from 1 to 4.
 *   **Finish:** After success/fail indication (3 seconds), system returns to Breathing Blue.
+
+## Documentation
+
+### User Guides
+
+* [Bluetooth Pairing Guide](docs/BLUETOOTH_PAIRING.md) - How to pair and connect via Bluetooth
+* [Dump Troubleshooting](docs/DUMP_TROUBLESHOOTING.md) - Common dump extraction issues
+* [Dump Display Feature](docs/FEATURE_DUMP_DISPLAY.md) - Using the web interface
+
+### Technical Documentation
+
+* [Known Bugs & Issues](KNOWN_BUGS.md) - Current issues and workarounds
+* [Bug Fixes Documentation](BUGFIXES.md) - Detailed bug fix history
+* [Deployment Summary](DEPLOYMENT_SUMMARY.md) - System status and deployment guide
 
 ## Known Bugs
 See **[KNOWN_BUGS.md](KNOWN_BUGS.md)** for a list of current issues and workarounds.

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Wifi, Save, Activity, Volume2, Lightbulb, Power, Terminal, AlertTriangle, ChevronDown, ChevronRight, Usb, RefreshCw, Bluetooth } from 'lucide-react';
+import { Wifi, Save, Activity, Volume2, Lightbulb, Power, Terminal, AlertTriangle, ChevronDown, ChevronRight, Usb, RefreshCw, Bluetooth, FileText } from 'lucide-react';
 
 function App() {
   const [status, setStatus] = useState({ drone_connected: false, mode: 'OFFLINE', error: null, buttons: { dump: false, pair: false } });
@@ -124,19 +124,28 @@ function App() {
               <h2 style={styles.cardTitle}>Status: {status.mode}</h2>
               {status.mode !== 'IDLE' && <Activity className="spin" color="#3498db" />}
           </div>
-          
+
+          {status.serial_port && (
+            <div style={{ marginBottom: '15px', padding: '10px', background: '#1a1a1a', borderRadius: '6px', fontSize: '14px' }}>
+              <div style={{ color: '#7f8c8d', marginBottom: '5px' }}>Serial Config:</div>
+              <div style={{ color: '#ecf0f1', fontFamily: 'monospace' }}>
+                {status.serial_port} @ {status.baud_rate} baud
+              </div>
+            </div>
+          )}
+
           <div style={styles.grid}>
-            <button 
-                style={styles.actionBtn(status.mode === 'IDLE' && status.drone_connected)} 
+            <button
+                style={styles.actionBtn(status.mode === 'IDLE' && status.drone_connected)}
                 disabled={status.mode !== 'IDLE' || !status.drone_connected}
                 onClick={() => triggerAction('dump')}
             >
                 <Save size={24} />
                 <span>Start Dump</span>
             </button>
-            
-            <button 
-                style={styles.actionBtn(status.mode === 'IDLE')} 
+
+            <button
+                style={styles.actionBtn(status.mode === 'IDLE')}
                 disabled={status.mode !== 'IDLE'}
                 onClick={() => triggerAction('pair')}
             >
@@ -145,6 +154,13 @@ function App() {
             </button>
           </div>
       </div>
+
+      {/* Latest Dump Info */}
+      {status.latest_dump && (
+        <CollapsibleCard title="📊 Latest Dump" defaultOpen={true}>
+          <DumpInfo dump={status.latest_dump} />
+        </CollapsibleCard>
+      )}
 
       {/* Hardware Configuration */}
       {hwConfig && (
@@ -176,8 +192,8 @@ function App() {
           <ControlBtn icon={<Power />} label="Off" color="#95a5a6" onClick={() => sendHardwareCommand('led', 'off')} />
         </div>
         <div style={styles.consoleLog}>
-          <Terminal size={14} style={{ marginRight: '8px' }} />
-          <span>{lastAction || "Ready"}</span>
+          <Terminal size={18} style={{ marginRight: '10px', flexShrink: 0 }} />
+          <span style={{ wordBreak: 'break-word', flex: 1 }}>{lastAction || "Ready"}</span>
         </div>
       </CollapsibleCard>
 
@@ -240,6 +256,100 @@ const ControlBtn = ({ icon, label, color, onClick }) => (
   </button>
 );
 
+const DumpInfo = ({ dump }) => {
+  const [dumpData, setDumpData] = useState(null);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    const fetchDumpContent = async () => {
+      if (!dump?.filename) return;
+      setLoading(true);
+      try {
+        const res = await fetch(`/api/dumps/${dump.filename}`);
+        if (res.ok) {
+          const data = await res.json();
+          setDumpData(data);
+        }
+      } catch (e) {
+        console.error("Failed to fetch dump content", e);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchDumpContent();
+  }, [dump?.filename]);
+
+  const formatTimestamp = (ts) => {
+    if (!ts) return 'Unknown';
+    const date = new Date(ts * 1000);
+    return date.toLocaleString();
+  };
+
+  const formatSize = (bytes) => {
+    if (!bytes) return '0 B';
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  };
+
+  return (
+    <div>
+      <div style={styles.grid}>
+        <div style={styles.infoItem}>
+          <span style={styles.label}>Filename:</span>
+          <span style={styles.val}>{dump.filename}</span>
+        </div>
+        <div style={styles.infoItem}>
+          <span style={styles.label}>Size:</span>
+          <span style={styles.val}>{formatSize(dump.size)}</span>
+        </div>
+        <div style={styles.infoItem}>
+          <span style={styles.label}>Timestamp:</span>
+          <span style={styles.val}>{formatTimestamp(dump.timestamp)}</span>
+        </div>
+      </div>
+
+      {loading && (
+        <div style={{ marginTop: '15px', textAlign: 'center', color: '#7f8c8d' }}>
+          <Activity className="spin" size={20} style={{ display: 'inline-block' }} />
+          <span style={{ marginLeft: '8px' }}>Loading dump content...</span>
+        </div>
+      )}
+
+      {dumpData && (
+        <div style={{ marginTop: '15px' }}>
+          {dumpData.version && (
+            <div style={{ ...styles.infoItem, marginBottom: '10px', background: '#1a472a', borderLeft: '4px solid #2ecc71' }}>
+              <span style={styles.label}>Version:</span>
+              <span style={{ ...styles.val, color: '#2ecc71' }}>{dumpData.version}</span>
+            </div>
+          )}
+          <details style={{ marginTop: '10px' }}>
+            <summary style={{ cursor: 'pointer', color: '#3498db', padding: '10px', background: '#1a1a1a', borderRadius: '6px' }}>
+              View Full Dump ({dumpData.content.split('\n').length} lines)
+            </summary>
+            <pre style={{
+              marginTop: '10px',
+              padding: '15px',
+              background: '#1a1a1a',
+              borderRadius: '6px',
+              color: '#bdc3c7',
+              fontFamily: 'monospace',
+              fontSize: '12px',
+              overflow: 'auto',
+              maxHeight: '400px',
+              whiteSpace: 'pre-wrap',
+              wordBreak: 'break-all'
+            }}>
+              {dumpData.content}
+            </pre>
+          </details>
+        </div>
+      )}
+    </div>
+  );
+};
+
 const styles = {
   container: { width: '100%', maxWidth: '800px', margin: '0 auto', padding: '10px', boxSizing: 'border-box' },
   header: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' },
@@ -279,8 +389,11 @@ const styles = {
     background: '#3498db', border: 'none', borderRadius: '6px', color: 'white', cursor: 'pointer', fontSize: '14px'
   },
   consoleLog: {
-    marginTop: '15px', padding: '10px', background: '#1a1a1a', borderRadius: '6px',
-    color: '#bdc3c7', fontFamily: 'monospace', fontSize: '13px', display: 'flex', alignItems: 'center'
+    marginTop: '15px', padding: '20px', background: '#1a1a1a', borderRadius: '8px',
+    color: '#ecf0f1', fontFamily: 'monospace', fontSize: '16px',
+    display: 'flex', alignItems: 'flex-start',
+    minHeight: '80px', lineHeight: '1.6',
+    border: '1px solid #2c3e50'
   },
   infoItem: { background: '#3a3a3a', padding: '10px', borderRadius: '6px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' },
   label: { color: '#bdc3c7', fontSize: '14px' },

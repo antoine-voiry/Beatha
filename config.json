@@ -8,10 +8,11 @@
     "led_brightness": 0.2
   },
   "system": {
-    "dump_dir": "/home/pi/dumps",
+    "dump_dir": "~/dumps",
     "serial_port": "/dev/ttyACM0",
     "baud_rate": 115200,
-    "socat_port": 5000
+    "socat_port": 5000,
+    "storage_mode": "cloud_sync"
   },
   "features": {
     "emulation_mode_fallback": true

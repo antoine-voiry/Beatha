@@ -2,7 +2,12 @@ import json
 import os
 import sys
 
-CONFIG_PATH = "config.json"
+# Use absolute path relative to this file's location
+# config.json is at the project root, two directories up from this file
+CONFIG_PATH = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
+    "config.json"
+)
 
 def load_config():
     """Load configuration from JSON file."""

@@ -7,6 +7,7 @@
 *   ✅ Local Storage + Basic Cloud Sync (via pre-configured rclone).
 *   ✅ Web UI for status and control.
 *   ✅ Bluetooth Proxy (Wireless Configurator Bridge).
+*   ✅ ArduPilot Detection (Basic).
 
 ## 🌟 Phase 2: Enhanced User Experience (Next Up)
 *   **Smart Cloud Setup:** Move away from CLI `rclone config`. Implement a UI-based OAuth flow where the user pastes an auth code to link Google Drive/Dropbox.
@@ -21,7 +22,17 @@
     *   **VTX Analyzer:** Read VTX tables and power settings to ensure legal compliance.
 *   **Blackbox Offloader:** Automatically mount the FC's SD card (MSC mode) and sync gigabytes of blackbox logs to a local SSD or cloud bucket.
 
-## 🌍 Phase 4: World Domination (Ecosystem)
+## 🌍 Phase 4:The Unknown (Ecosystem)
 *   **Global Tune Database:** Anonymized, searchable database of "Known Good Tunes" for every frame/motor combination.
 *   **Fleet Management:** A cloud dashboard for schools/racing leagues to manage firmware versions across 50+ drones.
 *   **AI Auto-Tune:** Use the database + LLM to generate a `diff` file that tunes your drone perfectly for your flying style.
+
+
+*   **"The Digital Pit Crew" (Automated Hardware Diagnostics):**
+    *   Active health check: Spin motors via MSP and read DSHOT telemetry (RPM/Current) to detect bad bearings, desync risks, or stalled motors *before* flight.
+*   **"Touchless" Race Check-In:**
+    *   Event organizers place a Beatha unit at registration. Pilots plug in -> Beatha auto-assigns valid VTX Channel, Power Level, and OSD Name based on the race heat structure.
+*   **Edge Blackbox Explorer:**
+    *   Host a lightweight Blackbox log visualizer directly on the Pi. View flight logs on your phone's browser immediately after landing, no laptop required.
+*   **Parts DNA & Anti-Tamper:**
+    *   Cryptographic fingerprinting of drone hardware (MCU Serial, Gyro ID, ESC Signature). Alerts fleet managers if components have been swapped (swapped parts detection).

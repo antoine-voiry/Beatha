@@ -198,7 +198,7 @@ class StateMachine:
             # Send wake up / command
             ser.write(b'#\r\n')
             time.sleep(0.1)
-            ser.flushInput()
+            ser.reset_input_buffer()
             ser.write(b'dump all\r\n')
             
             # Step C: Read (LED 2 Orange)

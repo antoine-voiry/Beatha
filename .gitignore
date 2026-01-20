@@ -42,3 +42,6 @@ yarn.lock
 AI_CONTEXT.md
 .geminiignore
 .vscode/mcp.json
+
+# Claude Code
+.claude/

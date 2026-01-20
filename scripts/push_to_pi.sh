@@ -24,7 +24,6 @@ rsync -avz --progress \
     --exclude '__pycache__' \
     --exclude '.DS_Store' \
     --exclude 'node_modules' \
-    --exclude 'dist' \
     --exclude 'tmp' \
     ./ "$DESTINATION:$REMOTE_DIR"
 
