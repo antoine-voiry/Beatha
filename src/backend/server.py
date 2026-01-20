@@ -123,11 +123,13 @@ class BeathaManager:
         threading.Thread(target=self._button_monitor_loop, daemon=True).start()
         threading.Thread(target=self._usb_monitor_loop, daemon=True).start()
         threading.Thread(target=self._socat_manager_loop, daemon=True).start()
+        threading.Thread(target=self._bt_proxy_manager_loop, daemon=True).start()
         logger.info("🟢 Beatha Manager Started")
 
     def stop(self):
         self.running = False
         self.stop_socat()
+        self.stop_bt_proxy()
         pixels.fill(COLOR_OFF)
         pixels.show()
 
@@ -149,6 +151,15 @@ class BeathaManager:
         elif pattern == "success":
             buzzer.value = True; time.sleep(0.1); buzzer.value = False; time.sleep(0.1)
             buzzer.value = True; time.sleep(0.1); buzzer.value = False
+        elif pattern == "victory":
+            # Ta-Da-Da-Taaaa!
+            notes = [0.1, 0.1, 0.1, 0.4]
+            gaps = [0.05, 0.05, 0.05, 0.1]
+            for i, duration in enumerate(notes):
+                buzzer.value = True
+                time.sleep(duration)
+                buzzer.value = False
+                time.sleep(gaps[i])
         elif pattern == "error":
             buzzer.value = True; time.sleep(0.5); buzzer.value = False
 
@@ -176,6 +187,7 @@ class BeathaManager:
                     logger.info("❌ Drone Disconnected")
                     self.drone_connected = False
                     self.stop_socat() # Safety cleanup
+                    self.stop_bt_proxy()
 
     def _button_monitor_loop(self):
         """Poll buttons"""
@@ -199,7 +211,7 @@ class BeathaManager:
             time.sleep(0.1)
 
     def _socat_manager_loop(self):
-        """Keep socat running in IDLE mode if drone is connected"""
+        """Keep socat TCP proxy running in IDLE mode"""
         while self.running:
             if self.state == "IDLE" and self.drone_connected:
                 if self.socat_process is None or self.socat_process.poll() is not None:
@@ -208,6 +220,32 @@ class BeathaManager:
                 if self.socat_process:
                     self.stop_socat()
             time.sleep(1)
+
+    def _bt_proxy_manager_loop(self):
+        """Keep Bluetooth RFCOMM proxy running in IDLE mode"""
+        self.bt_process = None
+        while self.running:
+            if self.state == "IDLE" and self.drone_connected:
+                # We use rfcomm watch to listen on channel 1 and bridge to serial
+                if self.bt_process is None or self.bt_process.poll() is not None:
+                    try:
+                        # Register SPP (Serial Port Profile) first to ensure visibility
+                        subprocess.run(["sdptool", "add", "SP"], check=False, stdout=subprocess.DEVNULL)
+                        
+                        logger.info("🔵 Starting BT RFCOMM Proxy...")
+                        # Command: rfcomm watch hci0 1 socat STDIO FILE:/dev/ttyACM0,raw,echo=0
+                        cmd = [
+                            "rfcomm", "watch", "hci0", "1", 
+                            "socat", "STDIO", f"FILE:{self.serial_port},b115200,raw,echo=0"
+                        ]
+                        self.bt_process = subprocess.Popen(cmd)
+                    except Exception as e:
+                        logger.error(f"BT Proxy Start Failed: {e}")
+                        time.sleep(5)
+            elif self.state != "IDLE" or not self.drone_connected:
+                self.stop_bt_proxy()
+            
+            time.sleep(2)
 
     def _animation_loop(self):
         """Breathing Blue in IDLE"""
@@ -241,6 +279,16 @@ class BeathaManager:
             self.socat_process = None
             logger.info("Connection Closed (Socat stopped)")
 
+    def stop_bt_proxy(self):
+        if hasattr(self, 'bt_process') and self.bt_process:
+            logger.info("Stopping BT Proxy...")
+            self.bt_process.terminate()
+            try:
+                self.bt_process.wait(timeout=1)
+            except subprocess.TimeoutExpired:
+                self.bt_process.kill()
+            self.bt_process = None
+
     def trigger_pair(self):
         if self.state != "IDLE": return
         
@@ -250,6 +298,7 @@ class BeathaManager:
         self.state = "PAIRING"
         self.stop_animation = True
         self.stop_socat()
+        self.stop_bt_proxy()
         
         logger.info("Starting Bluetooth Pairing Mode")
         try:
@@ -257,6 +306,8 @@ class BeathaManager:
             subprocess.run(["bluetoothctl", "power", "on"], check=False)
             subprocess.run(["bluetoothctl", "discoverable", "on"], check=False)
             subprocess.run(["bluetoothctl", "pairable", "on"], check=False)
+            subprocess.run(["bluetoothctl", "agent", "NoInputNoOutput"], check=False)
+            subprocess.run(["bluetoothctl", "default-agent"], check=False)
             
             # Blink Purple 30s
             for _ in range(60):
@@ -287,6 +338,7 @@ class BeathaManager:
         self.state = "DUMPING"
         self.stop_animation = True
         self.stop_socat()
+        self.stop_bt_proxy()
         
         # LED Sequence as per State Machine
         pixels.fill(COLOR_OFF); pixels.show()
@@ -297,28 +349,94 @@ class BeathaManager:
             logger.info("Opening Serial for Dump...")
             
             dump_content = ""
+            is_ardupilot = False
             
             if not EMULATION_MODE:
                 ser = serial.Serial(self.serial_port, 115200, timeout=2)
+                
+                # 1. Wake up & Get Version
                 ser.write(b'#\r\n')
                 time.sleep(0.1)
                 ser.flushInput()
-                ser.write(b'dump all\r\n')
+                ser.write(b'version\r\n')
                 
-                # Step C: Read (LED 2 Orange)
-                self.set_single_led(1, COLOR_ORANGE)
-                logger.info("Reading Data...")
-                
-                # Heuristic Read
+                version_info = ""
                 start_time = time.time()
-                while time.time() - start_time < 60:
+                valid_fw = False
+                while time.time() - start_time < 3: # Short timeout for version
                     if ser.in_waiting:
-                        line = ser.readline().decode('utf-8', errors='ignore')
-                        dump_content += line
-                        if "# name" in line or "# master" in line:
-                            break # Found end
-                    elif len(dump_content) > 100: # Idle
-                        break 
+                        try:
+                            line = ser.readline().decode('utf-8', errors='ignore')
+                            # Check for ArduPilot / MAVLink garbage (often shows as non-printable)
+                            if "ArduPilot" in line or "ChibiOS" in line:
+                                is_ardupilot = True
+                                version_info += line
+                                valid_fw = True
+                                break
+                            
+                            version_info += line
+                            if "Betaflight" in line or "INAV" in line or "Emuflight" in line:
+                                valid_fw = True
+                                
+                            if "GCC" in line or "Config" in line: 
+                                break
+                        except Exception:
+                            # Likely binary data (MAVLink)
+                            is_ardupilot = True
+                            version_info = "Detected Binary Data (Possible ArduPilot/MAVLink)"
+                            valid_fw = True # Assume valid but different protocol
+                            break
+                
+                if not valid_fw:
+                    logger.warning(f"Unknown Device or Garbage Data: {version_info[:50]}")
+                    self.beep("error")
+                    self.set_leds(COLOR_RED)
+                    ser.close()
+                    time.sleep(2)
+                    self.state = "IDLE"
+                    self.stop_animation = False
+                    return
+
+                logger.info(f"Detected Firmware Info: {version_info[:50]}...")
+
+                if is_ardupilot:
+                     dump_content = f"--- BEATHA EXTRACTION (ARDUPILOT DETECTED) ---\n\n{version_info}\n\n⚠️ NOTE: Full parameter dump for ArduPilot requires MAVLink protocol which is not yet supported in this version.\n"
+                else:
+                    # 2. Dump Configuration (Betaflight/INAV)
+                    # Added 'status' and 'resource show all' for motor info
+                    commands = [b'status\r\n', b'resource show all\r\n', b'dump all\r\n']
+                    
+                    dump_content = f"--- BEATHA EXTRACTION HEADER ---\n{version_info}\n--- END HEADER ---\n\n"
+                    
+                    # Step C: Read (LED 2 Orange)
+                    self.set_single_led(1, COLOR_ORANGE)
+                    logger.info("Reading Data...")
+                    
+                    for cmd in commands:
+                        ser.write(cmd)
+                        time.sleep(0.1)
+                        
+                    # Heuristic Read
+                    start_time = time.time()
+                    while time.time() - start_time < 90: # Increased timeout for larger dumps
+                        if ser.in_waiting:
+                            line = ser.readline().decode('utf-8', errors='ignore')
+                            dump_content += line
+                            if "# name" in line or "# master" in line:
+                                # This is tricky with multiple commands. 
+                                # 'dump all' usually comes last.
+                                pass
+                        elif len(dump_content) > 1000 and (time.time() - start_time > 5): 
+                            # If we have data and silence for a bit, assume done
+                            # Ideally we look for the prompt '# ' but readline strips it sometimes
+                            pass
+                            
+                        # Exit condition: Silence for 2 seconds after receiving data
+                        if len(dump_content) > 100 and ser.in_waiting == 0:
+                             time.sleep(2)
+                             if ser.in_waiting == 0:
+                                 break
+                
                 ser.close()
             else:
                 time.sleep(2) # Mock Delay
@@ -336,17 +454,24 @@ class BeathaManager:
             logger.info(f"Dump saved to {filepath}")
             
             # Step E: Cloud Sync (LED 4 Green/Red)
-            # Use 'gdrive:BF_Dumps' as per spec
-            try:
-                if not EMULATION_MODE:
-                    subprocess.run(["rclone", "copy", filepath, "gdrive:BF_Dumps"], check=True, timeout=60)
-                logger.info("Cloud Upload Success")
+            storage_mode = SYS_CONF.get("storage_mode", "cloud_sync") # local_only, cloud_sync
+            
+            if storage_mode == "cloud_sync":
+                try:
+                    if not EMULATION_MODE:
+                        subprocess.run(["rclone", "copy", filepath, "gdrive:BF_Dumps"], check=True, timeout=60)
+                    logger.info("Cloud Upload Success")
+                    self.set_single_led(3, COLOR_GREEN)
+                    self.beep("victory")
+                except Exception as e:
+                    logger.error(f"Cloud Upload Failed: {e}")
+                    self.set_single_led(3, COLOR_RED)
+                    self.beep("error")
+            else:
+                # Local Only
+                logger.info("Cloud sync skipped (Local Only Mode)")
                 self.set_single_led(3, COLOR_GREEN)
-                self.beep("success")
-            except Exception as e:
-                logger.error(f"Cloud Upload Failed: {e}")
-                self.set_single_led(3, COLOR_RED)
-                self.beep("error")
+                self.beep("victory")
                 
             time.sleep(3) # Hold Status
 
