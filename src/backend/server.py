@@ -9,6 +9,7 @@ import threading
 import logging
 import signal
 import serial
+import serial.tools.list_ports
 import pyudev
 from datetime import datetime
 from contextlib import asynccontextmanager
@@ -110,7 +111,8 @@ class BeathaManager:
         self.stop_animation = False
         self.animation_thread = None
         self.drone_connected = False
-        self.serial_port = SYS_CONF["serial_port"] # e.g., /dev/ttyACM0
+        self.serial_port = None  # Will be auto-detected
+        self.serial_port_config = SYS_CONF["serial_port"]  # Configured port (may not exist)
         self.baud_rate = SYS_CONF.get("baud_rate", 115200)
 
         # Ensure dump dir
@@ -122,9 +124,73 @@ class BeathaManager:
             self.dump_dir = os.path.expanduser(self.dump_dir)
         os.makedirs(self.dump_dir, exist_ok=True)
 
+    def _detect_serial_port(self):
+        """
+        Smart detection of flight controller serial port.
+        Uses same logic as Betaflight Configurator: checks VID:PID, device type, and manufacturer.
+        """
+        # Common flight controller VID:PID combinations
+        KNOWN_FC_VIDPID = [
+            (0x0483, 0x5740),  # STM32 DFU
+            (0x0483, 0xdf11),  # STM32 Bootloader
+            (0x10c4, 0xea60),  # CP210x (used by many FCs)
+            (0x0403, 0x6001),  # FTDI
+            (0x0403, 0x6015),  # FTDI X-Series
+            (0x2341, 0x0001),  # Arduino
+            (0x2341, 0x0043),  # Arduino Uno
+            (0x16c0, 0x0483),  # Teensy
+        ]
+
+        ports = serial.tools.list_ports.comports()
+        candidates = []
+
+        for port in ports:
+            score = 0
+
+            # Check if it's a known VID:PID
+            if port.vid and port.pid and (port.vid, port.pid) in KNOWN_FC_VIDPID:
+                score += 10
+
+            # Prefer ACM devices (native USB CDC)
+            if 'ACM' in port.device:
+                score += 5
+            elif 'USB' in port.device:
+                score += 3
+
+            # Check description for FC keywords
+            desc_lower = (port.description or "").lower()
+            if any(kw in desc_lower for kw in ['stm32', 'betaflight', 'inav', 'flight', 'cp210']):
+                score += 5
+
+            # Check manufacturer
+            mfr_lower = (port.manufacturer or "").lower()
+            if any(kw in mfr_lower for kw in ['stm', 'silicon labs', 'ftdi']):
+                score += 3
+
+            if score > 0:
+                candidates.append((port.device, score, port.description))
+
+        if not candidates:
+            return None
+
+        # Sort by score (highest first) and return best match
+        candidates.sort(key=lambda x: x[1], reverse=True)
+        best_port = candidates[0][0]
+        logger.info(f"Detected FC port: {best_port} (score: {candidates[0][1]}, {candidates[0][2]})")
+        return best_port
+
     def start(self):
         """Start background threads"""
         self.running = True
+        # Detect serial port on startup
+        self.serial_port = self._detect_serial_port()
+        if self.serial_port:
+            self.drone_connected = True
+            logger.info(f"🔌 Detected serial port: {self.serial_port}")
+        else:
+            self.drone_connected = False
+            logger.info("❌ No serial port detected")
+
         threading.Thread(target=self._animation_loop, daemon=True).start()
         threading.Thread(target=self._button_monitor_loop, daemon=True).start()
         threading.Thread(target=self._usb_monitor_loop, daemon=True).start()
@@ -179,22 +245,27 @@ class BeathaManager:
             monitor = pyudev.Monitor.from_netlink(context)
             monitor.filter_by(subsystem='tty')
 
-            # Initial Check
-            self.drone_connected = os.path.exists(self.serial_port)
-            logger.info(f"USB Initial Check: {self.drone_connected}")
-
             for device in monitor:
                 if not self.running: break
-                if device.device_node == self.serial_port:
+                device_node = device.device_node
+
+                # Check if it's a serial device we care about (ttyACM* or ttyUSB*)
+                if device_node and ('/dev/ttyACM' in device_node or '/dev/ttyUSB' in device_node):
                     if device.action == 'add':
-                        logger.info("🔌 Drone Connected")
+                        logger.info(f"🔌 Serial device connected: {device_node}")
+                        self.serial_port = device_node
                         self.drone_connected = True
                         self.beep("short")
                     elif device.action == 'remove':
-                        logger.info("❌ Drone Disconnected")
-                        self.drone_connected = False
-                        self.stop_socat() # Safety cleanup
-                        self.stop_bt_proxy()
+                        if device_node == self.serial_port:
+                            logger.info(f"❌ Serial device disconnected: {device_node}")
+                            self.drone_connected = False
+                            self.serial_port = self._detect_serial_port()  # Try to find another
+                            if not self.serial_port:
+                                self.stop_socat() # Safety cleanup
+                                self.stop_bt_proxy()
+                            else:
+                                logger.info(f"🔌 Switched to: {self.serial_port}")
         except Exception as e:
             logger.error(f"USB Monitor Loop crashed: {e}", exc_info=True)
 
