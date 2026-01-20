@@ -16,8 +16,13 @@ jobs:
       uses: actions/setup-python@v4
       with:
         python-version: 3.9
-        
-    - name: Install Dependencies
+
+    - name: Install System Dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y libudev-dev
+
+    - name: Install Python Dependencies
       run: |
         python -m pip install --upgrade pip
         # Manually install core deps
@@ -33,6 +38,8 @@ jobs:
       run: |
         # Create config.json for test environment
         echo '{"hardware": {"led_pin": 18, "button_dump_pin": 23, "button_pair_pin": 24, "buzzer_pin": 25, "led_count": 4, "led_brightness": 0.2}, "system": {"dump_dir": "./dumps_test", "serial_port": "/dev/ttyACM0"}, "features": {"emulation_mode_fallback": true}}' > config.json
+        # Create dummy dump dir
+        mkdir -p ./dumps_test
         pytest tests/
 
   frontend-build:
