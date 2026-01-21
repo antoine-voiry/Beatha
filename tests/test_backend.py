@@ -1,12 +1,25 @@
+import sys
+from unittest.mock import MagicMock
+
+# MOCK pyudev BEFORE importing server.py
+# This prevents the CI from crashing if libudev is missing/broken
+mock_pyudev = MagicMock()
+sys.modules["pyudev"] = mock_pyudev
+
 from fastapi.testclient import TestClient
 from src.backend.server import app, manager
 import unittest
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 
 client = TestClient(app)
 
 class TestBeathaBackend(unittest.TestCase):
     
+    def setUp(self):
+        # Reset manager state before each test
+        manager.drone_connected = False
+        manager.state = "IDLE"
+
     def test_status_endpoint_structure(self):
         """Test that /api/status returns the correct JSON structure."""
         response = client.get("/api/status")
