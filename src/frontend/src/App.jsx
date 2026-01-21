@@ -19,7 +19,7 @@ function App() {
         setStatus(prev => ({ ...prev, drone_connected: false, mode: 'OFFLINE', error: e.message }));
       }
     };
-    
+
     const fetchConfig = async () => {
       try {
         const res = await fetch('/api/config');
@@ -32,7 +32,7 @@ function App() {
     };
 
     fetchConfig();
-    const interval = setInterval(fetchStatus, 1000); 
+    const interval = setInterval(fetchStatus, 1000);
     fetchStatus();
     return () => clearInterval(interval);
   }, []);
@@ -210,8 +210,8 @@ const CollapsibleCard = ({ title, icon, children, defaultOpen = true }) => {
   const [isOpen, setIsOpen] = useState(defaultOpen);
   return (
     <div style={styles.card}>
-      <div 
-        style={{ ...styles.cardHeader, cursor: 'pointer' }} 
+      <div
+        style={{ ...styles.cardHeader, cursor: 'pointer' }}
         onClick={() => setIsOpen(!isOpen)}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
@@ -228,12 +228,12 @@ const CollapsibleCard = ({ title, icon, children, defaultOpen = true }) => {
 const ConfigInput = ({ label, name, value, onChange }) => (
   <div style={styles.infoItem}>
     <span style={styles.label}>{label}:</span>
-    <input 
-        type="text" 
-        name={name} 
-        value={value || ''} 
+    <input
+        type="text"
+        name={name}
+        value={value || ''}
         onChange={onChange}
-        style={styles.input} 
+        style={styles.input}
     />
   </div>
 );

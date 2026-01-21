@@ -50,7 +50,7 @@ class StateMachine:
         self.running = True
         self.animation_thread = None
         self.stop_animation = False
-        
+
         # Ensure dump directory exists
         if not os.path.exists(DUMP_DIR):
             os.makedirs(DUMP_DIR)
@@ -79,7 +79,7 @@ class StateMachine:
                 elif brightness <= 0.1:
                     brightness = 0.1
                     delta = 0.05
-                
+
                 # Apply brightness to blue
                 b_val = int(255 * brightness)
                 pixels.fill((0, 0, b_val))
@@ -126,13 +126,13 @@ class StateMachine:
             except subprocess.TimeoutExpired:
                 self.socat_process.kill()
             self.socat_process = None
-            
+
     def perform_pairing(self):
         print("Starting Pairing Mode")
         self.state = "PAIRING"
         self.stop_animation_thread()
         self.stop_socat() # Temporarily stop socat
-        
+
         try:
             # Enable discovery and pairability
             subprocess.run(["bluetoothctl", "power", "on"], check=False)
@@ -140,9 +140,9 @@ class StateMachine:
             subprocess.run(["bluetoothctl", "pairable", "on"], check=False)
             subprocess.run(["bluetoothctl", "agent", "NoInputNoOutput"], check=False)
             subprocess.run(["bluetoothctl", "default-agent"], check=False)
-            
+
             print("Bluetooth discoverable for 30 seconds...")
-            
+
             # Fast Blue Blink for 30s
             for _ in range(60): # 60 * 0.5s = 30s
                 pixels.fill(COLOR_PURPLE) # Purple for Pairing
@@ -151,7 +151,7 @@ class StateMachine:
                 pixels.fill(COLOR_OFF)
                 pixels.show()
                 time.sleep(0.25)
-                
+
                 # Allow exit if pairing button pressed again? (Optional, kept simple for now)
 
             # Reset BT state (optional, or leave on)
@@ -171,10 +171,10 @@ class StateMachine:
         print("Starting Extraction Mode")
         self.state = "EXTRACTION"
         self.stop_animation_thread()
-        
+
         # Step A: Stop socat
         self.stop_socat()
-        
+
         # Reset LEDs
         pixels.fill(COLOR_OFF)
         pixels.show()
@@ -182,71 +182,71 @@ class StateMachine:
         # Step B: Connect (LED 1 Orange)
         pixels[0] = COLOR_ORANGE
         pixels.show()
-        
+
         ser = None
         dump_content = ""
-        
+
         try:
             # Wait a moment for port to be free
             time.sleep(1)
-            
+
             if not os.path.exists(SERIAL_PORT):
                 raise Exception("Flight controller not connected")
 
             ser = serial.Serial(SERIAL_PORT, BAUD_RATE, timeout=2)
-            
+
             # Send wake up / command
             ser.write(b'#\r\n')
             time.sleep(0.1)
             ser.reset_input_buffer()
             ser.write(b'dump all\r\n')
-            
+
             # Step C: Read (LED 2 Orange)
             pixels[1] = COLOR_ORANGE
             pixels.show()
-            
+
             # Heuristic reading
             start_time = time.time()
             while True:
                 if time.time() - start_time > 60: # 60s timeout
                     raise Exception("Timeout reading dump")
-                
+
                 if ser.in_waiting:
                     line = ser.readline().decode('utf-8', errors='ignore')
                     dump_content += line
                     # Check for end of dump heuristics often used in CLI
                     # Usually ends with '# ' or implies completion
-                    if "# name" in line or "# master" in line: 
+                    if "# name" in line or "# master" in line:
                         # This usually appears at the end of a dump or diff
-                        pass 
-                    
-                    # A robust way to detect idle after dump is a short timeout 
+                        pass
+
+                    # A robust way to detect idle after dump is a short timeout
                     # but simple string matching is faster if known.
                     # Betaflight 'dump all' usually ends with the prompt or statistics.
-                    # Let's rely on a read timeout if we stop getting data, 
+                    # Let's rely on a read timeout if we stop getting data,
                     # but we are in a loop.
-                    
+
                 else:
                     # No data waiting
-                    # If we have substantial content, assume done? 
+                    # If we have substantial content, assume done?
                     # Better: Readline handles timeout. If we get empty strings after having content.
                     if len(dump_content) > 100:
                         break
-                    
+
             ser.close()
             ser = None
 
             # Step D: Save to file (LED 3 Yellow)
             pixels[2] = COLOR_YELLOW
             pixels.show()
-            
+
             timestamp = time.strftime("%Y%m%d-%H%M%S")
             filename = f"dump_{timestamp}.txt"
             filepath = os.path.join(DUMP_DIR, filename)
-            
+
             with open(filepath, "w") as f:
                 f.write(dump_content)
-            
+
             print(f"Saved dump to {filepath}")
 
             # Step E: Cloud Sync (rclone)
@@ -276,7 +276,7 @@ class StateMachine:
 
         # Step F: Hold status for 3 seconds
         time.sleep(3)
-        
+
         # Return to Idle
         self.state = "IDLE"
         self.start_animation()
@@ -303,7 +303,7 @@ class StateMachine:
                          self.perform_pairing()
                          while not btn_pair.value: time.sleep(0.1)
 
-                
+
                 # Maintain Socat in Idle
                 if self.state == "IDLE":
                     if self.socat_process is None or self.socat_process.poll() is not None:

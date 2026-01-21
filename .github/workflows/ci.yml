@@ -11,7 +11,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v3
-    
+
     - name: Set up Python 3.9
       uses: actions/setup-python@v4
       with:
@@ -27,7 +27,7 @@ jobs:
         python -m pip install --upgrade pip
         # Manually install core deps
         pip install fastapi httpx uvicorn pyudev pyserial pytest
-        
+
         # Install from requirements.txt BUT exclude hardware libs that fail on x86
         if [ -f requirements.txt ]; then
             grep -vE "rpi_ws281x|adafruit-circuitpython-neopixel|RPi.GPIO" requirements.txt > requirements-ci.txt
@@ -46,12 +46,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v3
-    
+
     - name: Set up Node.js
       uses: actions/setup-node@v3
       with:
         node-version: 18
-        
+
     - name: Install Frontend Dependencies
       run: |
         if [ -d "src/frontend" ]; then

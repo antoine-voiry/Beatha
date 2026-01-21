@@ -14,7 +14,7 @@ from unittest.mock import patch
 client = TestClient(app)
 
 class TestBeathaBackend(unittest.TestCase):
-    
+
     def setUp(self):
         # Reset manager state before each test
         manager.drone_connected = False
@@ -47,11 +47,11 @@ class TestBeathaBackend(unittest.TestCase):
         with patch("glob.glob") as mock_glob:
             # glob returns full paths
             mock_glob.return_value = ["/home/pi/dumps/dump_1.txt", "/home/pi/dumps/dump_2.txt"]
-            
+
             # Need to patch os.path.getmtime to avoid errors during sort
             with patch("os.path.getmtime") as mock_mtime:
                 mock_mtime.return_value = 1000.0
-                
+
                 response = client.get("/api/dumps")
                 self.assertEqual(response.status_code, 200)
                 # The implementation returns basenames

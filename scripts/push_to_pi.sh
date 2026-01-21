@@ -29,11 +29,11 @@ rsync -avz --progress \
 
 if [ $? -eq 0 ]; then
     echo "✅ File Sync Complete."
-    
+
     # 2. Remote Restart
     echo "🔄 Restarting Service..."
     ssh "$DESTINATION" "sudo systemctl restart beatha"
-    
+
     echo "🎉 Deployed & Restarted!"
     echo "   Logs: ssh $DESTINATION 'tail -f /var/log/beatha.log'"
 else

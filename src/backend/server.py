@@ -38,16 +38,16 @@ except ImportError:
         logger.warning("⚠️  Hardware Not Found: Running in Emulation Mode")
     else:
         raise ImportError("Hardware not found and emulation disabled.")
-    
+
     # Mock Classes
     class DigitalInOut:
         def __init__(self, pin): self.value = True # Pull UP = True default
         def direction(self, d): pass
         def pull(self, p): pass
-    
+
     class Direction: INPUT = 0; OUTPUT = 1
     class Pull: UP = 0
-    
+
     class MockNeoPixel:
         def __init__(self, pin, n, brightness=0.2, auto_write=False):
             self.n = n
@@ -57,7 +57,7 @@ except ImportError:
 
     class neopixel:
         NeoPixel = MockNeoPixel
-    
+
     class Board:
         def __getattr__(self, name):
             if name.startswith("D"): return int(name[1:])
@@ -210,7 +210,7 @@ class BeathaManager:
         self.stop_animation = True
         pixels.fill(color)
         pixels.show()
-    
+
     def set_single_led(self, index, color):
         if 0 <= index < HW_CONF["led_count"]:
             pixels[index] = color
@@ -398,7 +398,7 @@ class BeathaManager:
         self.stop_animation = True
         self.stop_socat()
         self.stop_bt_proxy()
-        
+
         logger.info("Starting Bluetooth Pairing Mode")
         try:
             # Unblock Bluetooth if soft-blocked (no sudo needed, we run as root)
@@ -425,7 +425,7 @@ class BeathaManager:
                          stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
             logger.info("Bluetooth pairing mode active for 30 seconds")
-            
+
             # Blink Purple 30s
             for _ in range(60):
                 if not self.running: break
@@ -433,7 +433,7 @@ class BeathaManager:
                 time.sleep(0.25)
                 pixels.fill(COLOR_OFF); pixels.show()
                 time.sleep(0.25)
-                
+
         except Exception as e:
             logger.error(f"Pairing Error: {e}")
             self.set_leds(COLOR_RED)
@@ -459,15 +459,15 @@ class BeathaManager:
         self.stop_animation = True
         self.stop_socat()
         self.stop_bt_proxy()
-        
+
         # LED Sequence as per State Machine
         pixels.fill(COLOR_OFF); pixels.show()
-        
+
         try:
             # Step B: Connect (LED 1 Orange)
             self.set_single_led(0, COLOR_ORANGE)
             logger.info("Opening Serial for Dump...")
-            
+
             dump_content = ""
             is_ardupilot = False
 
@@ -583,14 +583,14 @@ class BeathaManager:
             timestamp = time.strftime("%Y%m%d-%H%M%S")
             filename = f"dump_{timestamp}.txt"
             filepath = os.path.join(self.dump_dir, filename)
-            
+
             with open(filepath, "w") as f:
                 f.write(dump_content)
             logger.info(f"Dump saved to {filepath}")
-            
+
             # Step E: Cloud Sync (LED 4 Green/Red)
             storage_mode = SYS_CONF.get("storage_mode", "cloud_sync") # local_only, cloud_sync
-            
+
             if storage_mode == "cloud_sync":
                 try:
                     if not EMULATION_MODE:
@@ -607,7 +607,7 @@ class BeathaManager:
                 logger.info("Cloud sync skipped (Local Only Mode)")
                 self.set_single_led(3, COLOR_GREEN)
                 self.beep("victory")
-                
+
             time.sleep(3) # Hold Status
 
         except Exception as e:

@@ -25,7 +25,7 @@ repository:
   has_wiki: false
   has_projects: false
   has_downloads: true
-  
+
   # Allow squash merge for cleaner history
   allow_squash_merge: true
   allow_merge_commit: false
