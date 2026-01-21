@@ -48,7 +48,8 @@ class TestStateManagementRaceCondition(unittest.TestCase):
 
         manager = BeathaManager()
         self.assertTrue(hasattr(manager, 'state_lock'))
-        self.assertIsInstance(manager.state_lock, threading.Lock)
+        # threading.Lock is a factory function, not a type, so we need to get the actual type
+        self.assertIsInstance(manager.state_lock, type(threading.Lock()))
 
     @patch('src.backend.server.pixels')
     @patch('src.backend.server.buzzer')
