@@ -46,30 +46,34 @@ jobs:
 
   backend-test-arm:
     runs-on: ubuntu-latest
-    name: Backend Test (ARM64/Pi)
+    name: Backend Test (ARMv7/Pi Zero)
     steps:
       - uses: actions/checkout@v3
+      
+      # Setup QEMU for ARM emulation
+      - uses: docker/setup-qemu-action@v2
+      
       - uses: uraimo/run-on-arch-action@v2
         name: Run tests on ARM
         id: runcmd
         with:
-          arch: aarch64
+          arch: armv7
           distro: bullseye
           env: |
             BEATHA_EMULATION: true
           install: |
             apt-get update -q -y
-            apt-get install -q -y python3 python3-pip libudev-dev git
+            apt-get install -q -y python3 python3-pip libudev-dev git build-essential python3-dev python3-setuptools
           run: |
             python3 -m pip install --upgrade pip
             # Install ALL requirements (including hardware libs) to verify ARM compatibility
             pip3 install -r requirements.txt
-            pip3 install pytest
+            pip3 install pytest httpx
             # Create config
             echo '{"hardware": {"led_pin": 18, "button_dump_pin": 23, "button_pair_pin": 24, "buzzer_pin": 25, "led_count": 4, "led_brightness": 0.2}, "system": {"dump_dir": "./dumps_test", "serial_port": "/dev/ttyACM0"}, "features": {"emulation_mode_fallback": true}}' > config.json
             mkdir -p ./dumps_test
-            # Run tests
-            BEATHA_EMULATION=true pytest tests/
+            # Run tests with emulation forced (since QEMU has no GPIO)
+            BEATHA_EMULATION=true python3 -m pytest tests/
 
   frontend-build:
     runs-on: ubuntu-latest

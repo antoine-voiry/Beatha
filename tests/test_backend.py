@@ -1,4 +1,5 @@
 import sys
+import os
 from unittest.mock import MagicMock
 
 # MOCK pyudev BEFORE importing server.py
@@ -45,17 +46,29 @@ class TestBeathaBackend(unittest.TestCase):
     def test_list_dumps(self):
         """Test the dump listing endpoint."""
         with patch("glob.glob") as mock_glob:
-            # glob returns full paths
-            mock_glob.return_value = ["/home/pi/dumps/dump_1.txt", "/home/pi/dumps/dump_2.txt"]
+            # glob is called twice (root + subdirs). Return files only for the first call.
+            mock_glob.side_effect = [
+                ["/home/pi/dumps/dump_1.txt", "/home/pi/dumps/dump_2.txt"],
+                []
+            ]
 
             # Need to patch os.path.getmtime to avoid errors during sort
-            with patch("os.path.getmtime") as mock_mtime:
+            with patch("os.path.getmtime") as mock_mtime, \
+                 patch("os.path.getsize") as mock_getsize, \
+                 patch("os.path.relpath") as mock_relpath:
                 mock_mtime.return_value = 1000.0
+                mock_getsize.return_value = 1024
+                # Mock relpath to return just the basename for simplicity
+                mock_relpath.side_effect = lambda p, start: os.path.basename(p)
 
                 response = client.get("/api/dumps")
                 self.assertEqual(response.status_code, 200)
-                # The implementation returns basenames
-                self.assertEqual(response.json()["files"], ["dump_1.txt", "dump_2.txt"])
+
+                # The implementation returns a list of objects
+                files = response.json()["files"]
+                self.assertEqual(len(files), 2)
+                self.assertEqual(files[0]["filename"], "dump_1.txt")
+                self.assertEqual(files[1]["filename"], "dump_2.txt")
 
 if __name__ == "__main__":
     unittest.main()
