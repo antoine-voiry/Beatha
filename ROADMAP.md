@@ -21,6 +21,7 @@
 *   ✅ Organized dumps in directories by board name + version.
 *   ✅ MSC mode API for Betaflight SD card access (`/api/fc/msc`).
 *   ✅ Basic MAVLink connection for ArduPilot (heartbeat detection).
+*   ✅ Robust CI/CD Pipeline (GitHub Actions with ARMv7 Emulation).
 
 ## 🌟 Phase 2: Enhanced User Experience (Next Up)
 
