@@ -31,6 +31,7 @@
 *   **Full MAVLink FTP:** Complete ArduPilot log file download via MAVLink FTP protocol.
 
 ## 🔮 Phase 3: The "Pro" Tool (Long Term)
+
 *   **ESC Protocol Support:** Implement BLHeli/Bluejay serial passthrough to dump ESC firmware settings (Requires reverse engineering the 4-way interface protocol).
 *   **Universal Device Support:**
     *   **ArduPilot:** Full MAVLink parameter extraction.
@@ -38,7 +39,8 @@
     *   **VTX Analyzer:** Read VTX tables and power settings to ensure legal compliance.
 *   **Blackbox Auto-Sync:** Automatically mount the FC's SD card (MSC mode) and sync gigabytes of blackbox logs to a local SSD or cloud bucket.
 
-## 🌍 Phase 4:The Unknown (Ecosystem)
+## 🌍 Phase 4: The Unknown (Ecosystem)
+
 *   **Global Tune Database:** Anonymized, searchable database of "Known Good Tunes" for every frame/motor combination.
 *   **Fleet Management:** A cloud dashboard for schools/racing leagues to manage firmware versions across 50+ drones.
 *   **AI Auto-Tune:** Use the database + LLM to generate a `diff` file that tunes your drone perfectly for your flying style.
