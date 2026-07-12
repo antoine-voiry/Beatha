@@ -88,5 +88,54 @@ class TestBeathaBackend(unittest.TestCase):
         self.assertEqual(response.status_code, 400)
         self.assertEqual(response.json()["detail"], "Invalid mount path")
 
+    def test_exception_details_not_exposed(self):
+        """Test that raw exception messages are not exposed to the user."""
+        # 1. Test connect_serial with a mock that throws an exception
+        with patch.object(manager, 'detect_fc_type', side_effect=Exception("Database connection credentials exposed!")):
+            with patch("serial.tools.list_ports.comports") as mock_comports:
+                mock_port = MagicMock()
+                mock_port.device = "/dev/ttyACM0"
+                mock_comports.return_value = [mock_port]
+
+                response = client.post("/api/serial/connect", json={"port": "/dev/ttyACM0"})
+                self.assertEqual(response.status_code, 200)
+                data = response.json()
+                self.assertIn("warning", data)
+                self.assertNotIn("Database connection credentials exposed!", data["warning"])
+                self.assertEqual(data["warning"], "Internal connection error")
+
+        # 2. Test analyze_dump with a mock that throws an exception
+        with patch("src.backend.server.GEMINI_AVAILABLE", True), \
+             patch("src.backend.server.genai", create=True) as mock_genai, \
+             patch.dict("os.environ", {"GEMINI_API_KEY": "fake_key"}):  # pragma: allowlist secret
+            mock_genai.configure.side_effect = Exception("Mocked LLM error!")
+            # We patch os.path.exists to return True so it passes path checks
+            with patch("os.path.exists", return_value=True), \
+                 patch("builtins.open", unittest.mock.mock_open(read_data="Betaflight config")):
+                response = client.post("/api/llm/analyze", json={"filepath": "dump_1.txt"})
+                self.assertEqual(response.status_code, 500)
+                self.assertNotIn("Mocked LLM error!", response.json()["detail"])
+                self.assertEqual(response.json()["detail"], "Analysis failed due to an internal error")
+
+        # 3. Test sync_to_cloud with a mock that throws an exception
+        with patch("subprocess.run") as mock_run:
+            mock_run.side_effect = Exception("Mocked sync error!")
+            response = client.post("/api/cloud/sync", json={"filepath": "dump_1.txt"})
+            self.assertEqual(response.status_code, 500)
+            self.assertNotIn("Mocked sync error!", response.json()["detail"])
+            self.assertEqual(response.json()["detail"], "Sync failed due to an internal error")
+
+    def test_safe_path_validation(self):
+        """Test that unified path sanitizer rejects invalid paths."""
+        # Test get_dump with path traversal using %2F URL encoding so client doesn't resolve it
+        response = client.get("/api/dumps/..%2Fetc%2Fpasswd")
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.json()["detail"], "Invalid filepath")
+
+        # Test get_dump with absolute path bypass
+        response = client.get("/api/dumps/%2Fetc%2Fpasswd")
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.json()["detail"], "Invalid filepath")
+
 if __name__ == "__main__":
     unittest.main()

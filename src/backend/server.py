@@ -119,6 +119,28 @@ except ImportError:
 HW_CONF = config["hardware"]
 SYS_CONF = config["system"]
 
+def safe_join_path(base_dir: str, filepath: str) -> str:
+    """Safely join a base directory with a relative path.
+
+    Resolves both paths to their real paths and ensures the final path remains
+    strictly within the base directory. Raises HTTPException(400) if unsafe.
+    """
+    if ".." in filepath or os.path.isabs(filepath):
+        raise HTTPException(status_code=400, detail="Invalid filepath")
+
+    # Strip leading slashes to prevent absolute path bypass (e.g. /etc/passwd)
+    clean_filepath = filepath.lstrip("/")
+
+    full_path = os.path.join(base_dir, clean_filepath)
+    real_base = os.path.realpath(base_dir)
+    real_full = os.path.realpath(full_path)
+
+    # Ensure the real path starts with real_base with trailing path separator
+    if not (real_full == real_base or real_full.startswith(real_base + os.path.sep)):
+        raise HTTPException(status_code=400, detail="Invalid filepath")
+
+    return real_full
+
 # Colors
 COLOR_OFF = (0, 0, 0)
 COLOR_BLUE = (0, 0, 255)
@@ -390,6 +412,17 @@ class BeathaManager:
         Returns:
             List of downloaded file paths.
         """
+        if mount_path:
+            # Prevent path traversal
+            if ".." in mount_path:
+                raise ValueError("Invalid mount path")
+            # Restrict mount path to allowed root prefixes (/media, /mnt, /tmp)
+            abs_mount = os.path.abspath(mount_path)
+            allowed_prefixes = ["/media", "/mnt", "/tmp"]
+            is_allowed = any(abs_mount.startswith(prefix + os.path.sep) or abs_mount == prefix for prefix in allowed_prefixes)
+            if not (is_allowed or EMULATION_MODE):
+                raise ValueError("Invalid mount path")
+
         if EMULATION_MODE:
             return []
 
@@ -1183,15 +1216,7 @@ def list_dumps():
 @app.get("/api/dumps/{filepath:path}")
 def get_dump(filepath: str):
     """Get contents of a specific dump file (supports subdirectories)"""
-    # Sanitize filepath to prevent directory traversal
-    if ".." in filepath:
-        raise HTTPException(status_code=400, detail="Invalid filepath")
-
-    full_path = os.path.join(manager.dump_dir, filepath)
-
-    # Ensure the path is still within dump_dir
-    if not os.path.realpath(full_path).startswith(os.path.realpath(manager.dump_dir)):
-        raise HTTPException(status_code=400, detail="Invalid filepath")
+    full_path = safe_join_path(manager.dump_dir, filepath)
 
     if not os.path.exists(full_path):
         raise HTTPException(status_code=404, detail="File not found")
@@ -1288,7 +1313,7 @@ def connect_serial(data: dict):
         return {"status": "connected", "port": port, "baud_rate": baud, "fc_info": fc_info}
     except Exception as e:
         logger.error(f"Connection failed: {e}")
-        return {"status": "connected", "port": port, "baud_rate": baud, "fc_info": None, "warning": str(e)}
+        return {"status": "connected", "port": port, "baud_rate": baud, "fc_info": None, "warning": "Internal connection error"}
 
 @app.post("/api/serial/disconnect")
 def disconnect_serial():
@@ -1358,7 +1383,10 @@ def download_blackbox_from_msc(data: dict = None):
     mount_path = data.get("mount_path") if data else None
     if mount_path and ".." in mount_path:
         raise HTTPException(status_code=400, detail="Invalid mount path")
-    files = manager.download_blackbox_msc(mount_path)
+    try:
+        files = manager.download_blackbox_msc(mount_path)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
     if files:
         return {
@@ -1450,9 +1478,7 @@ def analyze_dump(data: dict):
         if not filepath:
             raise HTTPException(status_code=400, detail="Either filepath or content required")
 
-        full_path = os.path.join(manager.dump_dir, filepath)
-        if ".." in filepath or not os.path.realpath(full_path).startswith(os.path.realpath(manager.dump_dir)):
-            raise HTTPException(status_code=400, detail="Invalid filepath")
+        full_path = safe_join_path(manager.dump_dir, filepath)
 
         if not os.path.exists(full_path):
             raise HTTPException(status_code=404, detail="Dump file not found")
@@ -1495,7 +1521,7 @@ Configuration dump:
 
     except Exception as e:
         logger.error(f"LLM analysis failed: {e}")
-        raise HTTPException(status_code=500, detail=f"Analysis failed: {str(e)}")
+        raise HTTPException(status_code=500, detail="Analysis failed due to an internal error")
 
 # --- Cloud Storage Setup ---
 @app.get("/api/cloud/status")
@@ -1593,7 +1619,8 @@ def test_cloud_connection():
     except subprocess.TimeoutExpired:
         return {"status": "error", "message": "Connection timeout"}
     except Exception as e:
-        return {"status": "error", "message": str(e)}
+        logger.error(f"Cloud connection test failed: {e}")
+        return {"status": "error", "message": "Connection test failed due to an internal error"}
 
 @app.post("/api/cloud/sync")
 def sync_to_cloud(data: dict = None):
@@ -1602,9 +1629,7 @@ def sync_to_cloud(data: dict = None):
 
     if filepath:
         # Sanitize filepath to prevent directory traversal
-        full_path = os.path.join(manager.dump_dir, filepath)
-        if ".." in filepath or not os.path.realpath(full_path).startswith(os.path.realpath(manager.dump_dir)):
-            raise HTTPException(status_code=400, detail="Invalid filepath")
+        full_path = safe_join_path(manager.dump_dir, filepath)
 
     try:
         result = subprocess.run(["rclone", "listremotes"], capture_output=True, text=True, timeout=5)
@@ -1636,7 +1661,8 @@ def sync_to_cloud(data: dict = None):
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"Sync failed: {e}")
+        raise HTTPException(status_code=500, detail="Sync failed due to an internal error")
 
 # --- Tests ---
 @app.post("/api/test/hardware/{component}")
