@@ -49,10 +49,10 @@ jobs:
     name: Backend Test (ARMv7/Pi Zero)
     steps:
       - uses: actions/checkout@v3
-      
+
       # Setup QEMU for ARM emulation
       - uses: docker/setup-qemu-action@v2
-      
+
       - uses: uraimo/run-on-arch-action@v2
         name: Run tests on ARM
         id: runcmd

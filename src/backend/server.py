@@ -13,6 +13,7 @@ import serial.tools.list_ports
 import pyudev
 import re
 import shutil
+import json
 from datetime import datetime
 from contextlib import asynccontextmanager
 from src.backend.config_loader import config
@@ -23,6 +24,16 @@ try:
     MAVLINK_AVAILABLE = True
 except ImportError:
     MAVLINK_AVAILABLE = False
+
+# Try to import Google Generative AI for LLM analysis
+try:
+    import google.generativeai as genai
+    GEMINI_AVAILABLE = True
+except ImportError:
+    GEMINI_AVAILABLE = False
+
+# Cloud storage credentials file path
+CLOUD_CREDENTIALS_PATH = os.path.expanduser("~/.beatha/cloud_credentials.json")
 
 
 def sanitize_dirname(name: str) -> str:
@@ -1345,6 +1356,8 @@ def download_blackbox_from_msc(data: dict = None):
     Optional body: {"mount_path": "/path/to/mounted/sd"}
     """
     mount_path = data.get("mount_path") if data else None
+    if mount_path and ".." in mount_path:
+        raise HTTPException(status_code=400, detail="Invalid mount path")
     files = manager.download_blackbox_msc(mount_path)
 
     if files:
@@ -1358,6 +1371,272 @@ def download_blackbox_from_msc(data: dict = None):
             "status": "no_files",
             "message": "No blackbox files found. Ensure FC SD card is mounted."
         }
+
+# --- LLM Analysis (Doctor Beatha) ---
+@app.get("/api/llm/status")
+def get_llm_status():
+    """Check if LLM analysis is available and configured."""
+    # Check for API key in environment or credentials file
+    api_key = os.environ.get("GEMINI_API_KEY")
+    if not api_key and os.path.exists(CLOUD_CREDENTIALS_PATH):
+        try:
+            with open(CLOUD_CREDENTIALS_PATH, "r") as f:
+                creds = json.load(f)
+                api_key = creds.get("gemini_api_key")
+        except Exception:
+            pass
+
+    return {
+        "available": GEMINI_AVAILABLE,
+        "configured": bool(api_key),
+        "model": "gemini-1.5-flash" if GEMINI_AVAILABLE else None
+    }
+
+@app.post("/api/llm/configure")
+def configure_llm(data: dict):
+    """Configure LLM API key."""
+    api_key = data.get("api_key")
+    if not api_key:
+        raise HTTPException(status_code=400, detail="API key required")
+
+    # Create credentials directory if needed
+    os.makedirs(os.path.dirname(CLOUD_CREDENTIALS_PATH), exist_ok=True)
+
+    # Load existing credentials or create new
+    creds = {}
+    if os.path.exists(CLOUD_CREDENTIALS_PATH):
+        try:
+            with open(CLOUD_CREDENTIALS_PATH, "r") as f:
+                creds = json.load(f)
+        except Exception:
+            pass
+
+    creds["gemini_api_key"] = api_key
+
+    with open(CLOUD_CREDENTIALS_PATH, "w") as f:
+        json.dump(creds, f)
+
+    # Set file permissions to owner only
+    os.chmod(CLOUD_CREDENTIALS_PATH, 0o600)
+
+    return {"status": "configured"}
+
+@app.post("/api/llm/analyze")
+def analyze_dump(data: dict):
+    """Analyze a dump file using Gemini LLM (Doctor Beatha).
+
+    Body: {"filepath": "path/to/dump.txt"} or {"content": "dump content..."}
+    """
+    if not GEMINI_AVAILABLE:
+        raise HTTPException(status_code=501, detail="google-generativeai not installed. Run: pip install google-generativeai")
+
+    # Get API key
+    api_key = os.environ.get("GEMINI_API_KEY")
+    if not api_key and os.path.exists(CLOUD_CREDENTIALS_PATH):
+        try:
+            with open(CLOUD_CREDENTIALS_PATH, "r") as f:
+                creds = json.load(f)
+                api_key = creds.get("gemini_api_key")
+        except Exception:
+            pass
+
+    if not api_key:
+        raise HTTPException(status_code=400, detail="Gemini API key not configured. Go to Preferences to set it up.")
+
+    # Get dump content
+    content = data.get("content")
+    if not content:
+        filepath = data.get("filepath")
+        if not filepath:
+            raise HTTPException(status_code=400, detail="Either filepath or content required")
+
+        full_path = os.path.join(manager.dump_dir, filepath)
+        if ".." in filepath or not os.path.realpath(full_path).startswith(os.path.realpath(manager.dump_dir)):
+            raise HTTPException(status_code=400, detail="Invalid filepath")
+
+        if not os.path.exists(full_path):
+            raise HTTPException(status_code=404, detail="Dump file not found")
+
+        with open(full_path, "r") as f:
+            content = f.read()
+
+    # Truncate if too long (Gemini has token limits)
+    max_chars = 50000
+    if len(content) > max_chars:
+        content = content[:max_chars] + "\n\n[... truncated for analysis ...]"
+
+    try:
+        genai.configure(api_key=api_key)
+        model = genai.GenerativeModel('gemini-1.5-flash')
+
+        prompt = f"""You are "Doctor Beatha", an expert FPV drone tuning analyst. Analyze this Betaflight/INAV configuration dump and provide:
+
+1. **Quick Summary**: What type of build is this? (Racing quad, freestyle, cinematic, etc.)
+2. **Potential Issues**: Any settings that look problematic or suboptimal
+3. **Tuning Suggestions**: Specific improvements for better flight performance
+4. **Safety Checks**: Any settings that could cause problems (failsafe, receiver settings, motor output limits)
+
+Keep your response concise and actionable. Use bullet points.
+
+Configuration dump:
+```
+{content}
+```"""
+
+        response = model.generate_content(prompt)
+        analysis = response.text
+
+        return {
+            "status": "success",
+            "analysis": analysis,
+            "model": "gemini-1.5-flash",
+            "truncated": len(content) >= max_chars
+        }
+
+    except Exception as e:
+        logger.error(f"LLM analysis failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Analysis failed: {str(e)}")
+
+# --- Cloud Storage Setup ---
+@app.get("/api/cloud/status")
+def get_cloud_status():
+    """Check cloud storage configuration status."""
+    # Check if rclone is configured
+    rclone_configured = False
+    rclone_remote = None
+
+    try:
+        result = subprocess.run(["rclone", "listremotes"], capture_output=True, text=True, timeout=5)
+        if result.returncode == 0:
+            remotes = [r.strip() for r in result.stdout.strip().split("\n") if r.strip()]
+            if remotes:
+                rclone_configured = True
+                rclone_remote = remotes[0]  # Use first configured remote
+    except Exception:
+        pass
+
+    return {
+        "configured": rclone_configured,
+        "remote": rclone_remote,
+        "storage_mode": SYS_CONF.get("storage_mode", "local_only")
+    }
+
+@app.post("/api/cloud/setup/gdrive")
+def setup_google_drive(data: dict):
+    """Set up Google Drive using rclone with provided auth code.
+
+    Step 1: Call without auth_code to get the auth URL
+    Step 2: User visits URL, authorizes, gets code
+    Step 3: Call with auth_code to complete setup
+    """
+    auth_code = data.get("auth_code")
+    remote_name = data.get("remote_name", "gdrive")
+
+    if not auth_code:
+        # Step 1: Generate auth URL
+        # For Google Drive, user needs to go to Google Cloud Console to create OAuth credentials
+        # Or we use rclone's built-in auth flow
+        return {
+            "status": "need_auth",
+            "instructions": [
+                "1. On the Pi, run: rclone config",
+                "2. Choose 'n' for new remote",
+                "3. Name it 'gdrive'",
+                "4. Choose 'drive' for Google Drive",
+                "5. Leave client_id and client_secret blank (use rclone's)",
+                "6. Choose scope '1' (full access)",
+                "7. Leave root_folder_id blank",
+                "8. Leave service_account_file blank",
+                "9. Choose 'n' for auto config (since headless)",
+                "10. On another computer with browser, run: rclone authorize drive",
+                "11. Paste the resulting token back into the Pi config"
+            ],
+            "alternative": "Or use the CLI command on the Pi: rclone config"
+        }
+
+    # Step 2: If we have auth code, try to configure rclone
+    # This is complex because rclone doesn't easily accept auth codes via CLI
+    # For now, return instructions for manual setup
+    return {
+        "status": "manual_setup_required",
+        "message": "Due to OAuth security requirements, please run 'rclone config' on the Pi to complete Google Drive setup."
+    }
+
+@app.post("/api/cloud/test")
+def test_cloud_connection():
+    """Test cloud storage connection."""
+    try:
+        result = subprocess.run(
+            ["rclone", "listremotes"],
+            capture_output=True, text=True, timeout=10
+        )
+
+        if result.returncode != 0:
+            return {"status": "error", "message": "rclone not configured"}
+
+        remotes = [r.strip() for r in result.stdout.strip().split("\n") if r.strip()]
+        if not remotes:
+            return {"status": "error", "message": "No remotes configured"}
+
+        # Test the first remote
+        remote = remotes[0]
+        test_result = subprocess.run(
+            ["rclone", "lsd", remote],
+            capture_output=True, text=True, timeout=30
+        )
+
+        if test_result.returncode == 0:
+            return {"status": "success", "remote": remote, "message": "Cloud storage connected"}
+        else:
+            return {"status": "error", "remote": remote, "message": test_result.stderr}
+
+    except subprocess.TimeoutExpired:
+        return {"status": "error", "message": "Connection timeout"}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+@app.post("/api/cloud/sync")
+def sync_to_cloud(data: dict = None):
+    """Manually trigger cloud sync of all dumps."""
+    filepath = data.get("filepath") if data else None
+
+    if filepath:
+        # Sanitize filepath to prevent directory traversal
+        full_path = os.path.join(manager.dump_dir, filepath)
+        if ".." in filepath or not os.path.realpath(full_path).startswith(os.path.realpath(manager.dump_dir)):
+            raise HTTPException(status_code=400, detail="Invalid filepath")
+
+    try:
+        result = subprocess.run(["rclone", "listremotes"], capture_output=True, text=True, timeout=5)
+        if result.returncode != 0 or not result.stdout.strip():
+            raise HTTPException(status_code=400, detail="No cloud storage configured")
+
+        remote = result.stdout.strip().split("\n")[0].strip()
+
+        if filepath:
+            # Sync specific file
+            full_path = os.path.join(manager.dump_dir, filepath)
+            if not os.path.exists(full_path):
+                raise HTTPException(status_code=404, detail="File not found")
+
+            cmd = ["rclone", "copy", full_path, f"{remote}BF_Dumps/"]
+        else:
+            # Sync entire dumps directory
+            cmd = ["rclone", "sync", manager.dump_dir, f"{remote}BF_Dumps/"]
+
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
+
+        if result.returncode == 0:
+            return {"status": "success", "message": "Sync completed"}
+        else:
+            return {"status": "error", "message": result.stderr}
+
+    except subprocess.TimeoutExpired:
+        return {"status": "error", "message": "Sync timeout (taking too long)"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 # --- Tests ---
 @app.post("/api/test/hardware/{component}")

@@ -70,5 +70,23 @@ class TestBeathaBackend(unittest.TestCase):
                 self.assertEqual(files[0]["filename"], "dump_1.txt")
                 self.assertEqual(files[1]["filename"], "dump_2.txt")
 
+    def test_sync_to_cloud_path_traversal(self):
+        """Test that syncing a file with path traversal or absolute path returns 400."""
+        # Test directory traversal with ..
+        response = client.post("/api/cloud/sync", json={"filepath": "../etc/passwd"})
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.json()["detail"], "Invalid filepath")
+
+        # Test absolute path bypass
+        response = client.post("/api/cloud/sync", json={"filepath": "/etc/passwd"})
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.json()["detail"], "Invalid filepath")
+
+    def test_download_blackbox_msc_path_traversal(self):
+        """Test that downloading blackbox files from MSC with path traversal returns 400."""
+        response = client.post("/api/fc/msc/download", json={"mount_path": "../etc"})
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.json()["detail"], "Invalid mount path")
+
 if __name__ == "__main__":
     unittest.main()

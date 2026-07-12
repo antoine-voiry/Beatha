@@ -2,7 +2,8 @@ import React, { useState, useEffect, useCallback, createContext, useContext } fr
 import {
   Wifi, Save, Activity, Volume2, Lightbulb, Power, Terminal, AlertTriangle,
   ChevronDown, ChevronRight, Usb, RefreshCw, Bluetooth, FileText,
-  Sun, Moon, Settings, Cpu, Cable, Check, X, PlugZap, Unplug
+  Sun, Moon, Settings, Cpu, Cable, Check, X, PlugZap, Unplug,
+  Cloud, CloudOff, Brain, Key, Sparkles, Upload, Loader
 } from 'lucide-react';
 
 // Theme Context
@@ -85,6 +86,13 @@ function AppContent() {
   const [fcLogs, setFcLogs] = useState([]);
   const [connecting, setConnecting] = useState(false);
   const [refreshingPorts, setRefreshingPorts] = useState(false);
+  // LLM & Cloud state
+  const [llmStatus, setLlmStatus] = useState({ available: false, configured: false });
+  const [cloudStatus, setCloudStatus] = useState({ configured: false, remote: null });
+  const [geminiKey, setGeminiKey] = useState('');
+  const [analyzing, setAnalyzing] = useState(false);
+  const [analysis, setAnalysis] = useState(null);
+  const [syncing, setSyncing] = useState(false);
 
   const baudRates = [9600, 19200, 38400, 57600, 115200, 230400, 250000, 400000, 500000, 921600];
 
@@ -143,6 +151,97 @@ function AppContent() {
     const interval = setInterval(fetchLogs, 1000);
     return () => clearInterval(interval);
   }, [activeTab]);
+
+  // Fetch LLM and Cloud status when preferences tab is active
+  useEffect(() => {
+    if (activeTab !== 'preferences') return;
+
+    const fetchLlmStatus = async () => {
+      try {
+        const res = await fetch('/api/llm/status');
+        if (res.ok) {
+          const data = await res.json();
+          setLlmStatus(data);
+        }
+      } catch (e) { /* ignore */ }
+    };
+
+    const fetchCloudStatus = async () => {
+      try {
+        const res = await fetch('/api/cloud/status');
+        if (res.ok) {
+          const data = await res.json();
+          setCloudStatus(data);
+        }
+      } catch (e) { /* ignore */ }
+    };
+
+    fetchLlmStatus();
+    fetchCloudStatus();
+  }, [activeTab]);
+
+  const configureGemini = async () => {
+    if (!geminiKey.trim()) return;
+    try {
+      const res = await fetch('/api/llm/configure', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ api_key: geminiKey })
+      });
+      if (res.ok) {
+        setLastAction('Gemini API key configured!');
+        setLlmStatus(prev => ({ ...prev, configured: true }));
+        setGeminiKey('');
+      }
+    } catch (e) {
+      setLastAction(`Error: ${e.message}`);
+    }
+  };
+
+  const analyzeDump = async (filepath) => {
+    setAnalyzing(true);
+    setAnalysis(null);
+    try {
+      const res = await fetch('/api/llm/analyze', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ filepath })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setAnalysis(data.analysis);
+      } else {
+        setLastAction(`Analysis failed: ${data.detail}`);
+      }
+    } catch (e) {
+      setLastAction(`Error: ${e.message}`);
+    } finally {
+      setAnalyzing(false);
+    }
+  };
+
+  const syncToCloud = async () => {
+    setSyncing(true);
+    try {
+      const res = await fetch('/api/cloud/sync', { method: 'POST' });
+      const data = await res.json();
+      setLastAction(data.status === 'success' ? 'Cloud sync complete!' : `Sync error: ${data.message}`);
+    } catch (e) {
+      setLastAction(`Error: ${e.message}`);
+    } finally {
+      setSyncing(false);
+    }
+  };
+
+  const testCloudConnection = async () => {
+    try {
+      const res = await fetch('/api/cloud/test', { method: 'POST' });
+      const data = await res.json();
+      setLastAction(data.status === 'success' ? `Cloud connected: ${data.remote}` : `Cloud error: ${data.message}`);
+    } catch (e) {
+      setLastAction(`Error: ${e.message}`);
+    }
+  };
 
   const fetchSerialPorts = async () => {
     setRefreshingPorts(true);
@@ -476,6 +575,93 @@ function AppContent() {
               <Terminal size={18} style={{ marginRight: '10px', flexShrink: 0 }} />
               <span style={{ wordBreak: 'break-word', flex: 1 }}>{lastAction || "Ready"}</span>
             </div>
+          </CollapsibleCard>
+
+          {/* Doctor Beatha - LLM Analysis */}
+          <CollapsibleCard title="Doctor Beatha (AI Analysis)" icon={<Brain size={18} />} defaultOpen={true} theme={theme}>
+            <div style={styles.prefRow}>
+              <span style={{ color: theme.text }}>Status</span>
+              <span style={{ color: llmStatus.configured ? theme.success : theme.warning }}>
+                {llmStatus.available ? (llmStatus.configured ? 'Ready' : 'Need API Key') : 'Not Installed'}
+              </span>
+            </div>
+            {!llmStatus.configured && (
+              <div style={{ marginTop: '10px' }}>
+                <p style={{ color: theme.textMuted, fontSize: '0.85rem', marginBottom: '10px' }}>
+                  Get a free Gemini API key from <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer" style={{ color: theme.accent }}>Google AI Studio</a>
+                </p>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <input
+                    type="password"
+                    placeholder="Paste your Gemini API key"
+                    value={geminiKey}
+                    onChange={(e) => setGeminiKey(e.target.value)}
+                    style={{ ...styles.input, flex: 1 }}
+                  />
+                  <button onClick={configureGemini} style={styles.smBtn} disabled={!geminiKey.trim()}>
+                    <Key size={16} /> Save
+                  </button>
+                </div>
+              </div>
+            )}
+            {llmStatus.configured && status.latest_dump && (
+              <div style={{ marginTop: '10px' }}>
+                <button
+                  onClick={() => analyzeDump(status.latest_dump.filename)}
+                  style={styles.smBtn}
+                  disabled={analyzing}
+                >
+                  {analyzing ? <><Loader size={16} className="spin" /> Analyzing...</> : <><Sparkles size={16} /> Analyze Latest Dump</>}
+                </button>
+              </div>
+            )}
+            {analysis && (
+              <div style={{
+                marginTop: '15px',
+                padding: '15px',
+                background: theme.cardBgAlt,
+                borderRadius: '8px',
+                fontSize: '0.9rem',
+                lineHeight: '1.6',
+                whiteSpace: 'pre-wrap',
+                maxHeight: '400px',
+                overflowY: 'auto'
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px' }}>
+                  <strong style={{ color: theme.accent }}>Analysis Result</strong>
+                  <button onClick={() => setAnalysis(null)} style={{ background: 'none', border: 'none', color: theme.textMuted, cursor: 'pointer' }}>
+                    <X size={16} />
+                  </button>
+                </div>
+                <div style={{ color: theme.text }}>{analysis}</div>
+              </div>
+            )}
+          </CollapsibleCard>
+
+          {/* Cloud Storage */}
+          <CollapsibleCard title="Cloud Storage" icon={<Cloud size={18} />} defaultOpen={true} theme={theme}>
+            <div style={styles.prefRow}>
+              <span style={{ color: theme.text }}>Status</span>
+              <span style={{ display: 'flex', alignItems: 'center', gap: '6px', color: cloudStatus.configured ? theme.success : theme.warning }}>
+                {cloudStatus.configured ? <><Cloud size={16} /> {cloudStatus.remote}</> : <><CloudOff size={16} /> Not Configured</>}
+              </span>
+            </div>
+            <div style={{ marginTop: '10px', display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+              <button onClick={testCloudConnection} style={styles.smBtn}>
+                <RefreshCw size={16} /> Test Connection
+              </button>
+              <button onClick={syncToCloud} style={styles.smBtn} disabled={!cloudStatus.configured || syncing}>
+                {syncing ? <><Loader size={16} className="spin" /> Syncing...</> : <><Upload size={16} /> Sync Now</>}
+              </button>
+            </div>
+            {!cloudStatus.configured && (
+              <div style={{ marginTop: '15px', padding: '12px', background: theme.cardBgAlt, borderRadius: '8px' }}>
+                <p style={{ color: theme.textMuted, fontSize: '0.85rem', margin: 0 }}>
+                  To set up cloud sync, SSH into the Pi and run:<br />
+                  <code style={{ color: theme.accent }}>rclone config</code>
+                </p>
+              </div>
+            )}
           </CollapsibleCard>
 
           {/* User Preferences */}
