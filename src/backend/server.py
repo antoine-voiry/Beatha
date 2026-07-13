@@ -475,6 +475,9 @@ class BeathaManager:
         # Copy files to dump directory
         downloaded = []
         for src in files:
+            # Inline check to satisfy static analyzer taint tracking
+            if not (src.startswith("/media") or src.startswith("/mnt") or src.startswith("/tmp") or EMULATION_MODE):
+                continue
             filename = os.path.basename(src)
             dst = os.path.join(self.dump_dir, filename)
             try:
@@ -1218,6 +1221,10 @@ def get_dump(filepath: str):
     """Get contents of a specific dump file (supports subdirectories)"""
     full_path = safe_join_path(manager.dump_dir, filepath)
 
+    # Inline check to satisfy static analyzer taint tracking
+    if not full_path.startswith(os.path.realpath(manager.dump_dir)):
+        raise HTTPException(status_code=400, detail="Invalid filepath")
+
     if not os.path.exists(full_path):
         raise HTTPException(status_code=404, detail="File not found")
 
@@ -1484,6 +1491,10 @@ def analyze_dump(data: dict):
 
         full_path = safe_join_path(manager.dump_dir, filepath)
 
+        # Inline check to satisfy static analyzer taint tracking
+        if not full_path.startswith(os.path.realpath(manager.dump_dir)):
+            raise HTTPException(status_code=400, detail="Invalid filepath")
+
         if not os.path.exists(full_path):
             raise HTTPException(status_code=404, detail="Dump file not found")
 
@@ -1630,10 +1641,15 @@ def test_cloud_connection():
 def sync_to_cloud(data: dict = None):
     """Manually trigger cloud sync of all dumps."""
     filepath = data.get("filepath") if data else None
+    full_path = None
 
     if filepath:
         # Sanitize filepath to prevent directory traversal
         full_path = safe_join_path(manager.dump_dir, filepath)
+
+        # Inline check to satisfy static analyzer taint tracking
+        if not full_path.startswith(os.path.realpath(manager.dump_dir)):
+            raise HTTPException(status_code=400, detail="Invalid filepath")
 
     try:
         result = subprocess.run(["rclone", "listremotes"], capture_output=True, text=True, timeout=5)
@@ -1644,9 +1660,12 @@ def sync_to_cloud(data: dict = None):
 
         if filepath:
             # Sync specific file
-            full_path = os.path.join(manager.dump_dir, filepath)
             if not os.path.exists(full_path):
                 raise HTTPException(status_code=404, detail="File not found")
+
+            # Inline check to satisfy static analyzer taint tracking
+            if not full_path.startswith(os.path.realpath(manager.dump_dir)):
+                raise HTTPException(status_code=400, detail="Invalid filepath")
 
             cmd = ["rclone", "copy", full_path, f"{remote}BF_Dumps/"]
         else:
