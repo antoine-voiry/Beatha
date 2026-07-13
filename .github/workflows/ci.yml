@@ -45,7 +45,7 @@ jobs:
         echo '{"hardware": {"led_pin": 18, "button_dump_pin": 23, "button_pair_pin": 24, "buzzer_pin": 25, "led_count": 4, "led_brightness": 0.2}, "system": {"dump_dir": "./dumps_test", "serial_port": "/dev/ttyACM0"}, "features": {"emulation_mode_fallback": true}}' > config.json
         # Create dummy dump dir
         mkdir -p ./dumps_test
-        pytest tests/
+        python -m pytest tests/
 
   backend-test-arm:
     runs-on: ubuntu-latest
@@ -92,7 +92,7 @@ jobs:
       run: |
         if [ -d "src/frontend" ]; then
           cd src/frontend
-          npm ci
+          npm install
           npm run build
         else
           echo "Frontend directory not found, skipping build."
