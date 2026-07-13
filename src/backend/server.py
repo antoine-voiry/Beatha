@@ -518,7 +518,7 @@ class BeathaManager:
             filename = os.path.basename(src)
             dst = os.path.join(self.dump_dir, filename)
             try:
-                shutil.copy2(src, dst)
+                shutil.copy2(real_src, dst)
                 downloaded.append(dst)
                 self.add_log("info", f"Copied: {filename}")
             except Exception as e:
@@ -1707,6 +1707,11 @@ def sync_to_cloud(data: dict = None):
 
             # Inline check to satisfy static analyzer taint tracking
             if not full_path.startswith(os.path.realpath(manager.dump_dir)):
+                raise HTTPException(status_code=400, detail="Invalid filepath")
+
+            # Validate full_path characters to satisfy CodeQL command injection sanitization
+            import re
+            if not re.match(r"^[a-zA-Z0-9_\-\.\/]+$", full_path):
                 raise HTTPException(status_code=400, detail="Invalid filepath")
 
             # Use "--" to prevent command-line option injection (CWE-88)
