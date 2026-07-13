@@ -92,7 +92,7 @@ jobs:
       run: |
         if [ -d "src/frontend" ]; then
           cd src/frontend
-          npm install
+          npm install --legacy-peer-deps
           npm run build
         else
           echo "Frontend directory not found, skipping build."
