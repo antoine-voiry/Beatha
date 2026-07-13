@@ -1336,7 +1336,8 @@ def get_fc_info():
         try:
             fc_info = manager.detect_fc_type()
         except Exception as e:
-            return {"connected": True, "fc_info": None, "error": str(e)}
+            logger.error(f"Failed to detect FC type: {e}")
+            return {"connected": True, "fc_info": None, "error": "Detection failed"}
 
     return {"connected": True, "fc_info": fc_info}
 
@@ -1386,7 +1387,10 @@ def download_blackbox_from_msc(data: dict = None):
     try:
         files = manager.download_blackbox_msc(mount_path)
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        error_msg = str(e)
+        if error_msg not in ["Invalid mount path"]:
+            error_msg = "Invalid mount path"
+        raise HTTPException(status_code=400, detail=error_msg)
 
     if files:
         return {
