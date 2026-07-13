@@ -516,7 +516,9 @@ class BeathaManager:
             if not is_src_safe:
                 continue
             filename = os.path.basename(src)
-            dst = os.path.join(self.dump_dir, filename)
+            dst = os.path.realpath(os.path.join(self.dump_dir, filename))
+            if not dst.startswith(os.path.realpath(self.dump_dir)):
+                continue
             try:
                 shutil.copy2(real_src, dst)
                 downloaded.append(dst)
@@ -1678,12 +1680,12 @@ def test_cloud_connection():
 def sync_to_cloud(data: dict = None):
     """Manually trigger cloud sync of all dumps."""
     filepath = data.get("filepath") if data else None
-    full_path = None
+    filename = None
 
     if filepath:
-        # Validate filepath characters to satisfy CodeQL command injection sanitization
-        import re
-        if not re.match(r"^[a-zA-Z0-9_\-\.\/]+$", filepath):
+        filename = os.path.basename(filepath)
+        # Validate filename strictly to satisfy CodeQL command injection
+        if not filename.startswith("dump_") or not filename.endswith(".txt"):
             raise HTTPException(status_code=400, detail="Invalid filepath")
 
         # Sanitize filepath to prevent directory traversal
@@ -1702,6 +1704,7 @@ def sync_to_cloud(data: dict = None):
 
         if filepath:
             # Sync specific file
+            full_path = safe_join_path(manager.dump_dir, filepath)
             if not os.path.exists(full_path):
                 raise HTTPException(status_code=404, detail="File not found")
 
@@ -1709,18 +1712,13 @@ def sync_to_cloud(data: dict = None):
             if not full_path.startswith(os.path.realpath(manager.dump_dir)):
                 raise HTTPException(status_code=400, detail="Invalid filepath")
 
-            # Validate full_path characters to satisfy CodeQL command injection sanitization
-            import re
-            if not re.match(r"^[a-zA-Z0-9_\-\.\/]+$", full_path):
-                raise HTTPException(status_code=400, detail="Invalid filepath")
-
-            # Use "--" to prevent command-line option injection (CWE-88)
-            cmd = ["rclone", "copy", "--", full_path, f"{remote}BF_Dumps/"]
+            # Use "--" to prevent command-line option injection (CWE-88) and run in dump_dir
+            cmd = ["rclone", "copy", "--", filename, f"{remote}BF_Dumps/"]
+            result = subprocess.run(cmd, cwd=manager.dump_dir, capture_output=True, text=True, timeout=300)
         else:
             # Sync entire dumps directory
             cmd = ["rclone", "sync", manager.dump_dir, f"{remote}BF_Dumps/"]
-
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
 
         if result.returncode == 0:
             return {"status": "success", "message": "Sync completed"}
