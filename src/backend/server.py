@@ -417,11 +417,12 @@ class BeathaManager:
             if ".." in mount_path:
                 raise ValueError("Invalid mount path")
             # Restrict mount path to allowed root prefixes (/media, /mnt, /tmp)
-            abs_mount = os.path.abspath(mount_path)
+            abs_mount = os.path.realpath(mount_path)
             allowed_prefixes = ["/media", "/mnt", "/tmp"]
             is_allowed = any(abs_mount.startswith(prefix + os.path.sep) or abs_mount == prefix for prefix in allowed_prefixes)
             if not (is_allowed or EMULATION_MODE):
                 raise ValueError("Invalid mount path")
+            mount_path = abs_mount
 
         if EMULATION_MODE:
             return []
@@ -1667,7 +1668,8 @@ def sync_to_cloud(data: dict = None):
             if not full_path.startswith(os.path.realpath(manager.dump_dir)):
                 raise HTTPException(status_code=400, detail="Invalid filepath")
 
-            cmd = ["rclone", "copy", full_path, f"{remote}BF_Dumps/"]
+            # Use "--" to prevent command-line option injection (CWE-88)
+            cmd = ["rclone", "copy", "--", full_path, f"{remote}BF_Dumps/"]
         else:
             # Sync entire dumps directory
             cmd = ["rclone", "sync", manager.dump_dir, f"{remote}BF_Dumps/"]
