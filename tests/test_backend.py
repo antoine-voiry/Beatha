@@ -120,10 +120,11 @@ class TestBeathaBackend(unittest.TestCase):
         # 3. Test sync_to_cloud with a mock that throws an exception
         with patch("subprocess.run") as mock_run:
             mock_run.side_effect = Exception("Mocked sync error!")
-            response = client.post("/api/cloud/sync", json={"filepath": "dump_1.txt"})
-            self.assertEqual(response.status_code, 500)
-            self.assertNotIn("Mocked sync error!", response.json()["detail"])
-            self.assertEqual(response.json()["detail"], "Sync failed due to an internal error")
+            with patch("os.path.exists", return_value=True):
+                response = client.post("/api/cloud/sync", json={"filepath": "dump_1.txt"})
+                self.assertEqual(response.status_code, 500)
+                self.assertNotIn("Mocked sync error!", response.json()["detail"])
+                self.assertEqual(response.json()["detail"], "Sync failed due to an internal error")
 
     def test_safe_path_validation(self):
         """Test that unified path sanitizer rejects invalid paths."""
