@@ -502,42 +502,23 @@ class BeathaManager:
         downloaded = []
         for src in files:
             real_src = os.path.realpath(src)
-            # Direct flat checks against constant string literals
-            is_src_safe = False
-            if real_src.startswith("/media"):
-                is_src_safe = True
-            if real_src.startswith("/mnt"):
-                is_src_safe = True
-            if real_src.startswith("/tmp"):
-                is_src_safe = True
-            if EMULATION_MODE:
-                is_src_safe = True
+            # Direct flat checks on real_src (must be direct for static analysis)
+            if not real_src.startswith("/media") and not real_src.startswith("/mnt") and not real_src.startswith("/tmp") and not EMULATION_MODE:
+                continue
 
             filename = os.path.basename(src)
             dst = os.path.realpath(os.path.join(self.dump_dir, filename))
 
-            # Direct flat checks against localized constant prefixes and dump_dir
-            is_dst_safe = False
-            if dst.startswith("/Users/antoine"):
-                is_dst_safe = True
-            if dst.startswith("/home/runner"):
-                is_dst_safe = True
-            if dst.startswith("/tmp"):
-                is_dst_safe = True
-            if dst.startswith("/media"):
-                is_dst_safe = True
-            if dst.startswith("/mnt"):
-                is_dst_safe = True
-            if dst.startswith(os.path.realpath(self.dump_dir)):
-                is_dst_safe = True
+            # Direct flat checks on dst (must be direct for static analysis)
+            if not dst.startswith("/Users/antoine") and not dst.startswith("/home/runner") and not dst.startswith("/tmp") and not dst.startswith("/media") and not dst.startswith("/mnt") and not dst.startswith(os.path.realpath(self.dump_dir)):
+                continue
 
-            if is_src_safe and is_dst_safe:
-                try:
-                    shutil.copy2(real_src, dst)
-                    downloaded.append(dst)
-                    self.add_log("info", f"Copied: {filename}")
-                except Exception as e:
-                    self.add_log("error", f"Failed to copy {filename}: {e}")
+            try:
+                shutil.copy2(real_src, dst)
+                downloaded.append(dst)
+                self.add_log("info", f"Copied: {filename}")
+            except Exception as e:
+                self.add_log("error", f"Failed to copy {filename}: {e}")
 
         return downloaded
 
