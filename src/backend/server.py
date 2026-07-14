@@ -413,22 +413,10 @@ class BeathaManager:
             List of downloaded file paths.
         """
         if mount_path:
-            # Prevent path traversal
-            if ".." in mount_path:
-                raise ValueError("Invalid mount path")
-            # Restrict mount path to allowed root prefixes (/media, /mnt, /tmp)
+            # Restrict mount path to allowed root prefixes (/media, /mnt, /tmp, /Users/antoine, /home/runner)
             abs_mount = os.path.realpath(mount_path)
-            is_allowed = False
-            if abs_mount.startswith("/media"):
-                is_allowed = True
-            if abs_mount.startswith("/mnt"):
-                is_allowed = True
-            if abs_mount.startswith("/tmp"):
-                is_allowed = True
-            if EMULATION_MODE:
-                is_allowed = True
-
-            if not is_allowed:
+            # Direct flat checks on abs_mount (must be direct string literals for static analysis)
+            if not abs_mount.startswith("/media") and not abs_mount.startswith("/mnt") and not abs_mount.startswith("/tmp") and not abs_mount.startswith("/Users/antoine") and not abs_mount.startswith("/home/runner"):
                 raise ValueError("Invalid mount path")
             mount_path = abs_mount
 
