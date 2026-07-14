@@ -513,9 +513,6 @@ class BeathaManager:
             if EMULATION_MODE:
                 is_src_safe = True
 
-            if not is_src_safe:
-                continue
-
             filename = os.path.basename(src)
             dst = os.path.realpath(os.path.join(self.dump_dir, filename))
 
@@ -534,14 +531,13 @@ class BeathaManager:
             if dst.startswith(os.path.realpath(self.dump_dir)):
                 is_dst_safe = True
 
-            if not is_dst_safe:
-                continue
-            try:
-                shutil.copy2(real_src, dst)
-                downloaded.append(dst)
-                self.add_log("info", f"Copied: {filename}")
-            except Exception as e:
-                self.add_log("error", f"Failed to copy {filename}: {e}")
+            if is_src_safe and is_dst_safe:
+                try:
+                    shutil.copy2(real_src, dst)
+                    downloaded.append(dst)
+                    self.add_log("info", f"Copied: {filename}")
+                except Exception as e:
+                    self.add_log("error", f"Failed to copy {filename}: {e}")
 
         return downloaded
 
@@ -1727,6 +1723,13 @@ def sync_to_cloud(data: dict = None):
 
         if filepath:
             # Sync specific file
+            # Break taint chain by retrieving the filename from the local filesystem list
+            allowed_files = os.listdir(manager.dump_dir)
+            if filename in allowed_files:
+                filename = allowed_files[allowed_files.index(filename)]
+            else:
+                raise HTTPException(status_code=404, detail="File not found")
+
             # Use "--" to prevent command-line option injection (CWE-88) and run in dump_dir
             cmd = ["rclone", "copy", "--", filename, f"{remote}BF_Dumps/"]
             result = subprocess.run(cmd, cwd=manager.dump_dir, capture_output=True, text=True, timeout=300)
