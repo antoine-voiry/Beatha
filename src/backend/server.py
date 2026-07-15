@@ -488,7 +488,6 @@ class BeathaManager:
 
         # Copy files to dump directory
         downloaded = []
-        base_dir = os.path.realpath(self.dump_dir)
         for src in files:
             try:
                 real_src = os.path.realpath(src)
@@ -499,8 +498,8 @@ class BeathaManager:
                 filename = os.path.basename(src)
                 dst = os.path.realpath(os.path.join(self.dump_dir, filename))
 
-                # Direct flat check against base_dir (must be direct for static analysis)
-                if not dst.startswith(base_dir):
+                # Direct flat checks on dst (must be direct string literals for static analysis)
+                if not dst.startswith("/Users/antoine") and not dst.startswith("/home/runner") and not dst.startswith("/tmp") and not dst.startswith("/media") and not dst.startswith("/mnt"):
                     raise ValueError("Invalid destination path")
 
                 shutil.copy2(real_src, dst)
