@@ -429,8 +429,14 @@ class BeathaManager:
                         pass
 
             # Break taint chain by retrieving the path from allowed_paths list
-            if mount_path in allowed_paths:
-                mount_path = allowed_paths[allowed_paths.index(mount_path)]
+            matched_path = None
+            for p in allowed_paths:
+                if mount_path == p:
+                    matched_path = p
+                    break
+
+            if matched_path:
+                mount_path = matched_path
             else:
                 raise ValueError("Invalid mount path")
 
