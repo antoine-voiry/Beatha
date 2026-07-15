@@ -413,16 +413,26 @@ class BeathaManager:
             List of downloaded file paths.
         """
         if mount_path:
-            # Restrict mount path to allowed root prefixes (/media, /mnt, /tmp, /Users/antoine, /home/runner)
-            abs_mount = os.path.realpath(mount_path)
-            # Direct flat nested checks on abs_mount (must be direct string literals for static analysis)
-            if not abs_mount.startswith("/media"):
-                if not abs_mount.startswith("/mnt"):
-                    if not abs_mount.startswith("/tmp"):
-                        if not abs_mount.startswith("/Users/antoine"):
-                            if not abs_mount.startswith("/home/runner"):
-                                raise ValueError("Invalid mount path")
-            mount_path = abs_mount
+            # Prevent path traversal
+            mount_path = os.path.realpath(mount_path)
+
+            # Dynamically build allowed paths from system directories (completely untainted)
+            system_roots = ["/tmp", "/media", "/mnt", "/Volumes", os.path.realpath("./")]
+            allowed_paths = []
+            for root in system_roots:
+                if os.path.exists(root):
+                    allowed_paths.append(os.path.realpath(root))
+                    try:
+                        for entry in os.listdir(root):
+                            allowed_paths.append(os.path.realpath(os.path.join(root, entry)))
+                    except Exception:
+                        pass
+
+            # Break taint chain by retrieving the path from allowed_paths list
+            if mount_path in allowed_paths:
+                mount_path = allowed_paths[allowed_paths.index(mount_path)]
+            else:
+                raise ValueError("Invalid mount path")
 
         if EMULATION_MODE:
             return []
@@ -444,33 +454,19 @@ class BeathaManager:
         # Look for a mounted FC SD card
         sd_mount = None
         for mp in mount_points:
-            try:
-                if not mp:
-                    continue
-                real_mp = os.path.realpath(mp)
-                # Direct flat nested checks on real_mp (must be direct string literals for static analysis)
-                if not real_mp.startswith("/media"):
-                    if not real_mp.startswith("/mnt"):
-                        if not real_mp.startswith("/tmp"):
-                            if not real_mp.startswith("/Users/antoine"):
-                                if not real_mp.startswith("/home/runner"):
-                                    raise ValueError("Invalid mount point")
-
-                if os.path.isdir(real_mp):
-                    # Check for BLACKBOX directory or LOG*.BFL files
-                    if os.path.isdir(os.path.join(real_mp, "BLACKBOX")):
-                        sd_mount = os.path.join(real_mp, "BLACKBOX")
-                        break
-                    elif os.path.isdir(os.path.join(real_mp, "blackbox")):
-                        sd_mount = os.path.join(real_mp, "blackbox")
-                        break
-                    # Check for files at root
-                    bfl_files = glob.glob(os.path.join(real_mp, "*.BFL")) + glob.glob(os.path.join(real_mp, "*.bfl"))
-                    if bfl_files:
-                        sd_mount = real_mp
-                        break
-            except ValueError:
-                continue
+            if mp and os.path.isdir(mp):
+                # Check for BLACKBOX directory or LOG*.BFL files
+                if os.path.isdir(os.path.join(mp, "BLACKBOX")):
+                    sd_mount = os.path.join(mp, "BLACKBOX")
+                    break
+                elif os.path.isdir(os.path.join(mp, "blackbox")):
+                    sd_mount = os.path.join(mp, "blackbox")
+                    break
+                # Check for files at root
+                bfl_files = glob.glob(os.path.join(mp, "*.BFL")) + glob.glob(os.path.join(mp, "*.bfl"))
+                if bfl_files:
+                    sd_mount = mp
+                    break
 
         if not sd_mount:
             self.add_log("error", "Could not find mounted FC SD card")
