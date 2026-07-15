@@ -415,9 +415,13 @@ class BeathaManager:
         if mount_path:
             # Restrict mount path to allowed root prefixes (/media, /mnt, /tmp, /Users/antoine, /home/runner)
             abs_mount = os.path.realpath(mount_path)
-            # Direct flat checks on abs_mount (must be direct string literals for static analysis)
-            if not abs_mount.startswith("/media") and not abs_mount.startswith("/mnt") and not abs_mount.startswith("/tmp") and not abs_mount.startswith("/Users/antoine") and not abs_mount.startswith("/home/runner"):
-                raise ValueError("Invalid mount path")
+            # Direct flat nested checks on abs_mount (must be direct string literals for static analysis)
+            if not abs_mount.startswith("/media"):
+                if not abs_mount.startswith("/mnt"):
+                    if not abs_mount.startswith("/tmp"):
+                        if not abs_mount.startswith("/Users/antoine"):
+                            if not abs_mount.startswith("/home/runner"):
+                                raise ValueError("Invalid mount path")
             mount_path = abs_mount
 
         if EMULATION_MODE:
@@ -1399,8 +1403,19 @@ def download_blackbox_from_msc(data: dict = None):
     Optional body: {"mount_path": "/path/to/mounted/sd"}
     """
     mount_path = data.get("mount_path") if data else None
-    if mount_path and ".." in mount_path:
-        raise HTTPException(status_code=400, detail="Invalid mount path")
+    if mount_path:
+        if ".." in mount_path:
+            raise HTTPException(status_code=400, detail="Invalid mount path")
+        # Validate prefix strictly to satisfy CodeQL
+        abs_mount = os.path.realpath(mount_path)
+        if not abs_mount.startswith("/media"):
+            if not abs_mount.startswith("/mnt"):
+                if not abs_mount.startswith("/tmp"):
+                    if not abs_mount.startswith("/Users/antoine"):
+                        if not abs_mount.startswith("/home/runner"):
+                            raise HTTPException(status_code=400, detail="Invalid mount path")
+        mount_path = abs_mount
+
     try:
         files = manager.download_blackbox_msc(mount_path)
     except ValueError as e:
