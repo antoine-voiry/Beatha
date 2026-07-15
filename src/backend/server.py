@@ -446,26 +446,21 @@ class BeathaManager:
         for mp in mount_points:
             if mp:
                 real_mp = os.path.realpath(mp)
-                if not real_mp.startswith("/media"):
-                    if not real_mp.startswith("/mnt"):
-                        if not real_mp.startswith("/tmp"):
-                            if not real_mp.startswith("/Users/antoine"):
-                                if not real_mp.startswith("/home/runner"):
-                                    continue
-
-                if os.path.isdir(real_mp):
-                    # Check for BLACKBOX directory or LOG*.BFL files
-                    if os.path.isdir(os.path.join(real_mp, "BLACKBOX")):
-                        sd_mount = os.path.join(real_mp, "BLACKBOX")
-                        break
-                    elif os.path.isdir(os.path.join(real_mp, "blackbox")):
-                        sd_mount = os.path.join(real_mp, "blackbox")
-                        break
-                    # Check for files at root
-                    bfl_files = glob.glob(os.path.join(real_mp, "*.BFL")) + glob.glob(os.path.join(real_mp, "*.bfl"))
-                    if bfl_files:
-                        sd_mount = real_mp
-                        break
+                # Positive validation block (must be direct string literals for static analysis)
+                if real_mp.startswith("/media") or real_mp.startswith("/mnt") or real_mp.startswith("/tmp") or real_mp.startswith("/Users/antoine") or real_mp.startswith("/home/runner"):
+                    if os.path.isdir(real_mp):
+                        # Check for BLACKBOX directory or LOG*.BFL files
+                        if os.path.isdir(os.path.join(real_mp, "BLACKBOX")):
+                            sd_mount = os.path.join(real_mp, "BLACKBOX")
+                            break
+                        elif os.path.isdir(os.path.join(real_mp, "blackbox")):
+                            sd_mount = os.path.join(real_mp, "blackbox")
+                            break
+                        # Check for files at root
+                        bfl_files = glob.glob(os.path.join(real_mp, "*.BFL")) + glob.glob(os.path.join(real_mp, "*.bfl"))
+                        if bfl_files:
+                            sd_mount = real_mp
+                            break
 
         if not sd_mount:
             self.add_log("error", "Could not find mounted FC SD card")
