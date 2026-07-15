@@ -460,17 +460,7 @@ class BeathaManager:
 
         # Validate sd_mount strictly to satisfy CodeQL path-injection query
         real_sd_mount = os.path.realpath(sd_mount)
-        is_sd_safe = False
-        if real_sd_mount.startswith("/media"):
-            is_sd_safe = True
-        if real_sd_mount.startswith("/mnt"):
-            is_sd_safe = True
-        if real_sd_mount.startswith("/tmp"):
-            is_sd_safe = True
-        if EMULATION_MODE:
-            is_sd_safe = True
-
-        if not is_sd_safe:
+        if not real_sd_mount.startswith("/media") and not real_sd_mount.startswith("/mnt") and not real_sd_mount.startswith("/tmp") and not real_sd_mount.startswith("/Users/antoine") and not real_sd_mount.startswith("/home/runner"):
             self.add_log("error", "Unauthorized SD mount path")
             return []
         sd_mount = real_sd_mount
@@ -488,18 +478,17 @@ class BeathaManager:
 
         # Copy files to dump directory
         downloaded = []
+        base_dir = os.path.realpath(self.dump_dir)
         for src in files:
             try:
                 real_src = os.path.realpath(src)
-                # Direct flat checks on real_src (must be direct string literals for static analysis)
-                if not real_src.startswith("/media") and not real_src.startswith("/mnt") and not real_src.startswith("/tmp") and not real_src.startswith("/Users/antoine") and not real_src.startswith("/home/runner"):
+                if not real_src.startswith(sd_mount):
                     raise ValueError("Invalid source path")
 
                 filename = os.path.basename(src)
                 dst = os.path.realpath(os.path.join(self.dump_dir, filename))
 
-                # Direct flat checks on dst (must be direct string literals for static analysis)
-                if not dst.startswith("/Users/antoine") and not dst.startswith("/home/runner") and not dst.startswith("/tmp") and not dst.startswith("/media") and not dst.startswith("/mnt"):
+                if not dst.startswith(base_dir):
                     raise ValueError("Invalid destination path")
 
                 shutil.copy2(real_src, dst)
