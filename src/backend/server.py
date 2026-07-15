@@ -488,20 +488,21 @@ class BeathaManager:
 
         # Copy files to dump directory
         downloaded = []
+        base_dir = os.path.realpath(self.dump_dir)
         for src in files:
-            real_src = os.path.realpath(src)
-            # Direct flat checks on real_src (must be direct string literals for static analysis)
-            if not real_src.startswith("/media") and not real_src.startswith("/mnt") and not real_src.startswith("/tmp") and not real_src.startswith("/Users/antoine") and not real_src.startswith("/home/runner"):
-                continue
-
-            filename = os.path.basename(src)
-            dst = os.path.realpath(os.path.join(self.dump_dir, filename))
-
-            # Direct flat checks on dst (must be direct string literals for static analysis)
-            if not dst.startswith("/Users/antoine") and not dst.startswith("/home/runner") and not dst.startswith("/tmp") and not dst.startswith("/media") and not dst.startswith("/mnt"):
-                continue
-
             try:
+                real_src = os.path.realpath(src)
+                # Direct flat checks on real_src (must be direct string literals for static analysis)
+                if not real_src.startswith("/media") and not real_src.startswith("/mnt") and not real_src.startswith("/tmp") and not real_src.startswith("/Users/antoine") and not real_src.startswith("/home/runner"):
+                    raise ValueError("Invalid source path")
+
+                filename = os.path.basename(src)
+                dst = os.path.realpath(os.path.join(self.dump_dir, filename))
+
+                # Direct flat check against base_dir (must be direct for static analysis)
+                if not dst.startswith(base_dir):
+                    raise ValueError("Invalid destination path")
+
                 shutil.copy2(real_src, dst)
                 downloaded.append(dst)
                 self.add_log("info", f"Copied: {filename}")
