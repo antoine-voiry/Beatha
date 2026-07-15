@@ -412,9 +412,10 @@ class BeathaManager:
         Returns:
             List of downloaded file paths.
         """
+        safe_mount = None
         if mount_path:
             # Prevent path traversal
-            mount_path = os.path.realpath(mount_path)
+            real_path = os.path.realpath(mount_path)
 
             # Dynamically build allowed paths from system directories (completely untainted)
             system_roots = ["/tmp", "/media", "/mnt", "/Volumes", os.path.realpath("./")]
@@ -429,15 +430,12 @@ class BeathaManager:
                         pass
 
             # Break taint chain by retrieving the path from allowed_paths list
-            matched_path = None
             for p in allowed_paths:
-                if mount_path == p:
-                    matched_path = p
+                if real_path == p:
+                    safe_mount = p
                     break
 
-            if matched_path:
-                mount_path = matched_path
-            else:
+            if not safe_mount:
                 raise ValueError("Invalid mount path")
 
         if EMULATION_MODE:
@@ -445,12 +443,12 @@ class BeathaManager:
 
         # Common mount points to check
         mount_points = [
-            mount_path,
+            safe_mount,
             "/media/beatha",
             "/media/pi",
             "/mnt/fc_sd",
             "/mnt",
-        ] if mount_path else [
+        ] if safe_mount else [
             "/media/beatha",
             "/media/pi",
             "/mnt/fc_sd",
